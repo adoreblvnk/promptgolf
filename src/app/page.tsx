@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Boxes, FlaskConical, Wand2 } from "lucide-react";
-import { AppShell, Eyebrow, GlassCard, Section } from "@/components/promptgolf/chrome";
+import { AppShell, Eyebrow, Section } from "@/components/promptgolf/chrome";
 import { HeroComparator, type ComparatorSide } from "@/components/promptgolf/hero-comparator";
 import { challenges, runs, type Run } from "@/lib/promptgolf";
 
@@ -52,7 +52,7 @@ export default function Home() {
         </div>
       </Section>
 
-      <Section className="py-12">
+      <Section className="pb-16 pt-12">
         <div className="overflow-hidden rounded-lg border border-rule bg-card">
           <div className="grid divide-y divide-rule md:grid-cols-3 md:divide-x md:divide-y-0">
             <PipeStep icon={<Wand2 className="size-5" />} step="01" title="Agnes builds your spec" text="Agnes 2.0 Flash generates a real app from your prompt, exactly what you asked for and nothing you did not." />
@@ -60,22 +60,6 @@ export default function Home() {
             <PipeStep icon={<FlaskConical className="size-5" />} step="03" title="Playwright scores it" text="Hidden Playwright checks tear the live app apart. Vague specs ship bugs; precise specs survive." />
           </div>
         </div>
-      </Section>
-
-      <Section className="pb-16 pt-12">
-        <GlassCard className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="font-mono text-xs uppercase tracking-[0.14em] text-ink-muted">Primary challenge</div>
-            <h2 className="mt-2 text-3xl font-semibold tracking-[-0.02em] text-ink">{challenge.title}</h2>
-            <p className="mt-2 max-w-2xl text-ink-soft">{challenge.subtitle}</p>
-          </div>
-          <Link
-            href={`/challenges/${challenge.slug}`}
-            className="group inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-ink px-6 font-medium text-paper transition-[background-color] duration-200 ease-out hover:bg-ink/90"
-          >
-            Open challenge <ArrowRight className="size-4 transition-transform duration-200 ease-out group-hover:translate-x-1" />
-          </Link>
-        </GlassCard>
       </Section>
     </AppShell>
   );

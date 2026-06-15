@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PromptGolf A4 Poster</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 0;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      figure {
+        margin: 0;
+      }
+
+      :root {
+        --paper: oklch(0.965 0.008 90);
+        --card: oklch(0.992 0.004 90);
+        --ink: oklch(0.23 0.022 268);
+        --ink-soft: oklch(0.43 0.018 268);
+        --ink-muted: oklch(0.56 0.012 268);
+        --rule: oklch(0.23 0.022 268 / 0.18);
+        --rule-strong: oklch(0.23 0.022 268 / 0.36);
+        --accent: oklch(0.46 0.2 30);
+        --accent-soft: oklch(0.6 0.2 30 / 0.1);
+        --pass: oklch(0.5 0.13 152);
+        --pass-soft: oklch(0.5 0.13 152 / 0.12);
+        --fail-soft: oklch(0.46 0.2 30 / 0.1);
+        --mock-radius-sm: 1.6mm;
+        --mock-radius-md: 2.4mm;
+        --mock-radius-lg: 3.4mm;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #ddd8cc;
+        color: var(--ink);
+        font-family: Inter, "DejaVu Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+      }
+
+      .sheet {
+        position: relative;
+        width: 210mm;
+        height: 297mm;
+        overflow: hidden;
+        background:
+          linear-gradient(90deg, oklch(0.23 0.022 268 / 0.055) 1px, transparent 1px) 0 0 / 12mm 12mm,
+          linear-gradient(0deg, oklch(0.23 0.022 268 / 0.045) 1px, transparent 1px) 0 0 / 12mm 12mm,
+          radial-gradient(circle at 10% 7%, oklch(0.55 0.22 30 / 0.13), transparent 28%),
+          var(--paper);
+        box-shadow: 0 18px 50px rgb(0 0 0 / 0.22);
+      }
+
+      .sheet::before {
+        content: "";
+        position: absolute;
+        inset: 8mm;
+        border: 1px solid var(--rule-strong);
+        pointer-events: none;
+      }
+
+      .content {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr) auto;
+        gap: 4mm;
+        height: 100%;
+        padding: 10mm;
+      }
+
+      .topline {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8mm;
+        border-bottom: 1px solid var(--rule-strong);
+        padding-bottom: 4mm;
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11.5pt;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 3mm;
+      }
+
+      .mark {
+        display: inline-grid;
+        place-items: center;
+        width: 13mm;
+        height: 13mm;
+        background: var(--ink);
+        color: var(--paper);
+        font-weight: 800;
+        letter-spacing: -0.06em;
+      }
+
+      .github {
+        max-width: 94mm;
+        color: var(--ink-soft);
+        text-align: right;
+        text-transform: none;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 3mm;
+      }
+
+      h1 {
+        margin: 0;
+        max-width: 176mm;
+        font-size: 35pt;
+        line-height: 0.9;
+        letter-spacing: -0.04em;
+        text-wrap: balance;
+      }
+
+      h1 .accent {
+        color: var(--accent);
+      }
+
+      .thesis {
+        margin: 0;
+        max-width: 176mm;
+        color: var(--ink-soft);
+        font-size: 15.5pt;
+        line-height: 1.2;
+      }
+
+      .thesis strong {
+        color: var(--ink);
+      }
+
+      .product-description {
+        border-bottom: 1px solid var(--rule-strong);
+        background: oklch(0.992 0.004 90 / 0.9);
+        padding: 3mm;
+      }
+
+      .product-description strong {
+        display: block;
+        font-size: 15.5pt;
+        line-height: 1;
+        letter-spacing: -0.03em;
+      }
+
+      .product-description span {
+        display: block;
+        margin-top: 1.2mm;
+        color: var(--ink-soft);
+        font-size: 11.5pt;
+        line-height: 1.18;
+      }
+
+      .main-proof {
+        display: grid;
+        grid-template-columns: 1.18fr 0.82fr;
+        gap: 5mm;
+        min-height: 0;
+      }
+
+      .side-proof {
+        display: grid;
+        grid-template-rows: auto auto 1fr;
+        gap: 2mm;
+        min-height: 0;
+      }
+
+      .scorecard {
+        border: 1px solid var(--rule-strong);
+        border-radius: var(--mock-radius-md);
+        background: oklch(0.992 0.004 90 / 0.92);
+        overflow: hidden;
+      }
+
+      .scorecard.bad {
+        background: linear-gradient(0deg, var(--fail-soft), var(--fail-soft)), var(--card);
+      }
+
+      .scorecard.good {
+        background: linear-gradient(0deg, var(--pass-soft), var(--pass-soft)), var(--card);
+      }
+
+      .score-top {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 3mm;
+        align-items: start;
+        border-bottom: 1px solid var(--rule-strong);
+        padding: 3mm;
+      }
+
+      .score-top h2 {
+        margin: 0;
+        font-size: 18pt;
+        line-height: 0.95;
+        letter-spacing: -0.035em;
+      }
+
+      .score-top p {
+        margin: 1.4mm 0 0;
+        color: var(--ink-soft);
+        font-size: 9.8pt;
+        line-height: 1.18;
+      }
+
+      .score {
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 25pt;
+        font-weight: 900;
+        line-height: 0.9;
+        letter-spacing: -0.06em;
+        text-align: right;
+      }
+
+      .bad .score {
+        color: var(--accent);
+      }
+
+      .good .score {
+        color: var(--pass);
+      }
+
+      .checks {
+        display: grid;
+        gap: 1.2mm;
+        padding: 2.4mm 3mm 3mm;
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 9pt;
+        line-height: 1.18;
+      }
+
+      .check {
+        display: grid;
+        grid-template-columns: 5.5mm 1fr auto;
+        gap: 1.5mm;
+        align-items: center;
+        border: 1px solid var(--rule);
+        border-radius: var(--mock-radius-sm);
+        background: var(--card);
+        padding: 1.35mm 1.6mm;
+      }
+
+      .bad .check b {
+        color: var(--accent);
+      }
+
+      .good .check b {
+        color: var(--pass);
+      }
+
+      .tag {
+        border: 1px solid var(--rule);
+        border-radius: 1.2mm;
+        padding: 1mm 1.5mm;
+        color: var(--ink-muted);
+        font-size: 9pt;
+        text-transform: uppercase;
+      }
+
+      .shot-wrap {
+        display: grid;
+        grid-template-rows: auto auto 1fr;
+        min-height: 0;
+        border: 1px solid var(--rule-strong);
+        border-radius: var(--mock-radius-md);
+        background: var(--card);
+        overflow: hidden;
+      }
+
+      .shot-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 4mm;
+        border-bottom: 1px solid var(--rule-strong);
+        padding: 3mm;
+      }
+
+      .shot-head h2 {
+        margin: 0;
+        font-size: 18pt;
+        line-height: 1;
+        letter-spacing: -0.03em;
+      }
+
+      .shot-head span {
+        color: var(--pass);
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 14pt;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .run-mock {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 3mm;
+        min-height: 0;
+        padding: 3mm;
+      }
+
+      .result-bar {
+        display: grid;
+        grid-template-columns: 1.45fr repeat(3, 0.86fr);
+        gap: 2mm;
+      }
+
+      .result-main,
+      .result-mini {
+        border: 1px solid var(--rule);
+        border-radius: var(--mock-radius-md);
+        background: var(--paper);
+        padding: 2.4mm;
+      }
+
+      .result-main span,
+      .result-mini span {
+        display: block;
+        color: var(--ink-muted);
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 9pt;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .result-main strong,
+      .result-mini strong {
+        display: block;
+        margin-top: 1mm;
+        color: var(--ink);
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 14pt;
+        line-height: 0.95;
+        letter-spacing: -0.04em;
+        white-space: nowrap;
+      }
+
+      .result-main strong {
+        color: var(--pass);
+        font-size: 17pt;
+      }
+
+      .browser-mock {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        min-height: 0;
+        border: 1px solid var(--rule-strong);
+        border-radius: var(--mock-radius-lg);
+        background: var(--paper);
+        overflow: hidden;
+      }
+
+      .browser-bar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 3mm;
+        border-bottom: 1px solid var(--rule);
+        padding: 2mm 2.5mm;
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 9pt;
+        color: var(--ink-muted);
+      }
+
+      .browser-title {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .lights {
+        display: flex;
+        gap: 1.2mm;
+      }
+
+      .lights i {
+        width: 2mm;
+        height: 2mm;
+        border-radius: 999px;
+        background: var(--accent);
+      }
+
+      .lights i:nth-child(2) {
+        background: oklch(0.74 0.15 72);
+      }
+
+      .lights i:nth-child(3) {
+        background: var(--pass);
+      }
+
+      .checkout-mock {
+        display: grid;
+        grid-template-columns: 1fr 0.86fr;
+        gap: 3mm;
+        align-items: start;
+        min-height: 0;
+        padding: 3mm;
+        border: 1.5px solid var(--pass);
+        border-radius: var(--mock-radius-lg);
+        background: oklch(0.5 0.13 152 / 0.08);
+      }
+
+      .cart-mock,
+      .summary-mock {
+        border: 1px solid var(--rule);
+        border-radius: var(--mock-radius-lg);
+        background: var(--card);
+        padding: 3mm;
+        box-shadow: 0 1px 2px oklch(0.23 0.022 268 / 0.06);
+      }
+
+      .cart-mock {
+        display: grid;
+        align-content: start;
+        gap: 2.2mm;
+      }
+
+      .cart-mock h3,
+      .summary-mock h3 {
+        margin: 0 0 2.4mm;
+        font-size: 13pt;
+        line-height: 1;
+        letter-spacing: -0.025em;
+      }
+
+      .item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 2mm;
+        border: 1px solid var(--rule);
+        border-radius: var(--mock-radius-md);
+        background: var(--paper);
+        padding: 2.2mm;
+        font-size: 9pt;
+        box-shadow: 0 1px 2px oklch(0.23 0.022 268 / 0.04);
+      }
+
+      .total-line {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 2mm;
+        border-top: 1px solid var(--rule);
+        padding: 1.7mm 0;
+        font-size: 9pt;
+      }
+
+      .total-line:first-of-type {
+        border-top: 0;
+      }
+
+      .item small,
+      .total-line small {
+        display: block;
+        margin-top: 0.8mm;
+        color: var(--ink-soft);
+        font-size: 9pt;
+      }
+
+      .qty {
+        border: 1px solid var(--rule);
+        border-radius: var(--mock-radius-sm);
+        background: var(--paper);
+        padding: 1mm 1.6mm;
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 9pt;
+      }
+
+      .pill-pass {
+        border: 1px solid oklch(0.5 0.13 152 / 0.45);
+        border-radius: var(--mock-radius-sm);
+        background: var(--pass-soft);
+        color: var(--pass);
+        flex-shrink: 0;
+        padding: 1mm 1.6mm;
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 9pt;
+        white-space: nowrap;
+      }
+
+      .total-line.total {
+        margin-top: 1mm;
+        padding-top: 3mm;
+        font-size: 13pt;
+        font-weight: 800;
+      }
+
+      .mock-button {
+        margin-top: 3mm;
+        background: var(--pass);
+        border-radius: var(--mock-radius-md);
+        color: var(--paper);
+        padding: 2.4mm;
+        text-align: center;
+        font-size: 9pt;
+        font-weight: 800;
+      }
+
+      .mock-checks {
+        display: grid;
+        gap: 1.6mm;
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 9pt;
+      }
+
+      .mock-checks div {
+        display: grid;
+        grid-template-columns: 5mm 1fr auto;
+        gap: 1.5mm;
+        align-items: center;
+        border: 1px solid var(--rule);
+        border-radius: var(--mock-radius-md);
+        background: var(--paper);
+        padding: 1.7mm 2mm;
+      }
+
+      .mock-checks b {
+        color: var(--pass);
+      }
+
+      .caption {
+        align-self: stretch;
+        display: grid;
+        align-content: start;
+        gap: 2mm;
+        border: 1px solid var(--rule-strong);
+        border-radius: var(--mock-radius-md);
+        background: oklch(0.992 0.004 90 / 0.92);
+        padding: 2.4mm;
+      }
+
+      .caption h2 {
+        margin: 0;
+        color: var(--accent);
+        font-size: 18pt;
+        line-height: 0.96;
+        letter-spacing: -0.035em;
+      }
+
+      .caption p {
+        margin: 2mm 0 0;
+        color: var(--ink-soft);
+        font-size: 10.2pt;
+        line-height: 1.22;
+      }
+
+      .agnes-list {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.8mm;
+        margin-top: 1.8mm;
+        font-size: 9.4pt;
+        line-height: 1.16;
+      }
+
+      .agnes-list div {
+        display: grid;
+        grid-template-columns: 34mm 1fr;
+        gap: 2mm;
+        align-items: baseline;
+        border: 1px solid var(--rule);
+        border-radius: var(--mock-radius-sm);
+        background: var(--paper);
+        padding: 0.9mm 1.35mm;
+      }
+
+      .agnes-list b {
+        color: var(--accent);
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 9pt;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2mm;
+      }
+
+      .chip {
+        border: 1px solid var(--rule-strong);
+        border-radius: 999px;
+        background: var(--paper);
+        padding: 1.6mm 2.2mm;
+        color: var(--ink-soft);
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 9pt;
+        line-height: 1;
+        text-transform: uppercase;
+      }
+
+      .chip.hot {
+        border-color: oklch(0.46 0.2 30 / 0.38);
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      .bottom {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 4mm;
+        align-items: end;
+        border-top: 1px solid var(--rule-strong);
+        padding-top: 3mm;
+      }
+
+      .bottom h2 {
+        margin: 0;
+        font-size: 20pt;
+        line-height: 0.96;
+        letter-spacing: -0.035em;
+      }
+
+      .bottom p {
+        margin: 2mm 0 0;
+        color: var(--ink-soft);
+        font-size: 11.5pt;
+        line-height: 1.22;
+      }
+
+      .cta {
+        display: grid;
+        gap: 1.5mm;
+        min-width: 54mm;
+        border: 1px solid var(--accent);
+        border-radius: var(--mock-radius-md);
+        background: var(--accent);
+        padding: 3.2mm 3.8mm;
+        color: var(--paper);
+        text-align: right;
+      }
+
+      .cta strong {
+        font-size: 16pt;
+        line-height: 1;
+      }
+
+      .cta span {
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 9pt;
+      }
+
+      @media print {
+        body {
+          background: var(--paper);
+        }
+
+        .sheet {
+          box-shadow: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="sheet" aria-label="PromptGolf A4 poster">
+      <div class="content">
+        <header class="topline">
+          <div class="brand"><span class="mark">PG</span><span>LeetCode for prompts</span></div>
+          <div class="github">github.com/adoreblvnk/promptgolf</div>
+        </header>
+
+        <section class="hero">
+          <h1>Your models don&apos;t have a skill issue. <span class="accent">You Do.</span></h1>
+          <p class="thesis"><strong>Everyone benchmarks models.</strong> After seeing your prompts, I really ought to benchmark you instead.</p>
+        </section>
+
+        <section class="main-proof" aria-label="PromptGolf live run screenshot and score comparison">
+          <article class="shot-wrap">
+            <section class="product-description" aria-label="PromptGolf description">
+              <strong>PromptGolf tests prompting skill and technical skill.</strong>
+              <span>AI can one-shot only what you can specify. Hidden checks expose weak prompts and missing product knowledge.</span>
+            </section>
+            <div class="shot-head"><h2>Real run evidence</h2></div>
+            <div class="run-mock" aria-label="HTML mockup of a successful PromptGolf live run">
+              <div class="result-bar">
+                <div class="result-main"><span>Results</span><strong>10/10</strong></div>
+                <div class="result-mini"><span>Functional</span><strong>5/5</strong></div>
+                <div class="result-mini"><span>Hidden</span><strong>3/3</strong></div>
+                <div class="result-mini"><span>UX</span><strong>2/2</strong></div>
+              </div>
+              <div class="browser-mock">
+                <div class="browser-bar"><span class="lights"><i></i><i></i><i></i></span><span class="browser-title">checkout preview</span><span class="pill-pass">sandbox</span></div>
+                <div class="checkout-mock">
+                  <div class="cart-mock">
+                    <h3>Cart items</h3>
+                    <div class="item"><span>Canvas tote<small>$25.00 each</small></span><span class="qty">2</span></div>
+                    <div class="item"><span>Espresso beans<small>$18.00 each</small></span><span class="qty">1</span></div>
+                    <div class="item"><span>Stoneware mug<small>Out of stock</small></span><span class="pill-pass">locked</span></div>
+                  </div>
+                  <div class="summary-mock">
+                    <h3>Order summary</h3>
+                    <div class="total-line"><span>Subtotal</span><strong>$68.00</strong></div>
+                    <div class="total-line"><span>Discount</span><span class="pill-pass">$0.00</span></div>
+                    <div class="total-line"><span>Shipping</span><span class="pill-pass">$0.00</span></div>
+                    <div class="total-line"><span>Tax</span><strong>$5.61</strong></div>
+                    <div class="total-line total"><span>Total</span><strong>$73.61</strong></div>
+                    <div class="mock-button">Place order</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <div class="side-proof">
+            <article class="scorecard bad">
+              <div class="score-top">
+                <div>
+                  <h2>Vague prompt</h2>
+                  <p>Looks finished; misses checkout rules.</p>
+                </div>
+                <div class="score">3/10</div>
+              </div>
+              <div class="checks">
+                <div class="check"><b>×</b><span>Invalid promo</span><span class="tag">fail</span></div>
+                <div class="check"><b>×</b><span>Stock boundaries</span><span class="tag">fail</span></div>
+              </div>
+            </article>
+
+            <article class="scorecard good">
+              <div class="score-top">
+                <div>
+                  <h2>Expert prompt</h2>
+                  <p>Names edge cases; generated app survives.</p>
+                </div>
+                <div class="score">10/10</div>
+              </div>
+              <div class="checks">
+                <div class="check"><b>✓</b><span>Integer cents</span><span class="tag">pass</span></div>
+                <div class="check"><b>✓</b><span>Promo code rules</span><span class="tag">pass</span></div>
+              </div>
+            </article>
+
+            <article class="caption">
+              <div>
+                <h2>Agnes AI usage.</h2>
+                <div class="agnes-list">
+                  <div><b>Coding tasks</b><span>Generates full-stack checkout apps.</span></div>
+                  <div><b>Multimodal</b><span>Reads Playwright screenshots.</span></div>
+                  <div><b>Tool calling</b><span>Playwright MCP evaluator generation.</span></div>
+                  <div><b>Structured output</b><span>Prompt diagnosis + scores.</span></div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <footer class="bottom">
+          <div>
+            <h2>Vague prompts fail because vague thinking fails.</h2>
+            <p>Either way, it&apos;s a skill issue.</p>
+          </div>
+          <div class="cta"><strong>Start promptmaxxing</strong><span>promptgolf-agnes.vercel.app</span></div>
+        </footer>
+      </div>
+    </main>
+  </body>
+</html>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Clock, LockKeyhole } from "lucide-react";
 import { AppShell, Eyebrow, Section } from "@/components/promptgolf/chrome";
-import { challenges, getRunsForChallenge } from "@/lib/promptgolf";
+import { challenges } from "@/lib/promptgolf";
 
 export default function ChallengesPage() {
   return (
@@ -14,8 +14,6 @@ export default function ChallengesPage() {
       <Section className="pt-4">
         <div className="grid gap-5 lg:grid-cols-2">
           {challenges.map((challenge) => {
-            const challengeRuns = getRunsForChallenge(challenge.slug);
-            const best = challengeRuns[0];
             return (
               <Link href={`/challenges/${challenge.slug}`} key={challenge.slug} className="group block">
                 <div className="h-full rounded-lg border border-rule bg-card p-6 shadow-[0_1px_2px_oklch(0.23_0.022_268/0.05)] transition-[border-color,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-rule-strong">
@@ -30,8 +28,7 @@ export default function ChallengesPage() {
                     <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.12em] text-ink-muted"><LockKeyhole className="size-3.5 text-accent" /> Hidden evaluator teaser</div>
                     <p className="mt-3 text-sm leading-6 text-ink-soft">{challenge.thesis}</p>
                   </div>
-                  <div className="mt-6 flex items-center justify-between border-t border-rule pt-5 text-sm">
-                    <span className="font-mono text-ink-muted">Best seeded score: {best ? best.score.finalScore : "preview"}</span>
+                  <div className="mt-6 flex items-center justify-end border-t border-rule pt-5 text-sm">
                     <span className="inline-flex items-center gap-2 font-medium text-ink group-hover:text-accent">Open <ArrowRight className="size-4 transition-transform duration-200 ease-out group-hover:translate-x-1" /></span>
                   </div>
                 </div>

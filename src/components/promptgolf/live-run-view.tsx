@@ -298,10 +298,6 @@ export function LiveRunView({ id }: { id: string }) {
             <span className="rounded border border-rule bg-paper px-2.5 py-1 font-mono text-xs text-ink-soft">stage: {run.stage}</span>
             <span className={cn("rounded border px-2.5 py-1 font-mono text-xs", connected ? "border-pass/30 bg-pass-soft text-pass" : "border-warn/35 bg-warn-soft text-warn")}>{connected ? "SSE connected" : "polling fallback"}</span>
           </div>
-          <div className="text-right" data-testid="live-score">
-            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">score</div>
-            <div className="font-mono text-2xl font-semibold tabular-nums tracking-[-0.04em] text-ink">{scoreText}</div>
-          </div>
         </div>
         <div className="grid items-start gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="border-b border-rule p-4 lg:border-b-0 lg:border-r">
@@ -333,7 +329,7 @@ export function LiveRunView({ id }: { id: string }) {
           <aside className="flex flex-col gap-3 p-3 sm:p-4 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:overscroll-contain">
             <div className="rounded-lg border border-rule bg-paper p-3">
               <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-muted">Results</div>
-              <div className="mt-1.5 font-mono text-4xl font-semibold tabular-nums tracking-[-0.04em] text-ink">{scoreText}</div>
+              <div className="mt-1.5 font-mono text-4xl font-semibold tabular-nums tracking-[-0.04em] text-ink" data-testid="live-score">{scoreText}</div>
               <p className="mt-1.5 text-xs leading-5 text-ink-soft">Functional checks, hidden ecommerce edge cases, and Agnes AI screenshot UI/UX scoring.</p>
               {categoryScores.length ? (
                 <div className="mt-3 grid grid-cols-3 gap-2">

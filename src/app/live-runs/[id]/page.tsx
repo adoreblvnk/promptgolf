@@ -12,7 +12,6 @@ export default async function LiveRunPage({ params }: { params: Promise<{ id: st
       <Section className="flex flex-col gap-8 py-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/challenges/mini-checkout-promo-engine" className="font-mono text-sm text-ink-soft transition-colors hover:text-ink">← Back to challenge</Link>
-          <Link href="/runs/expert-checkout" className="font-mono text-sm text-ink-soft transition-colors hover:text-ink">Reference expert seed run</Link>
         </div>
         <LiveRunView id={id} />
       </Section>
