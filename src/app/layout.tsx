@@ -15,9 +15,37 @@ const plexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+  ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : undefined)
+  ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
+const shareImage = {
+  url: "/images/promptgolf-share-card.png",
+  width: 1536,
+  height: 864,
+  alt: "PromptGolf scorecard preview showing hidden ecommerce checkout tests.",
+};
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "PromptGolf — LeetCode for AI-era software specs",
   description: "Competitive benchmark for AI-spec writing: fewer prompts, more passing tests.",
+  openGraph: {
+    title: "PromptGolf — LeetCode for AI-era software specs",
+    description: "Competitive benchmark for AI-spec writing: fewer prompts, more passing tests.",
+    url: "/",
+    siteName: "PromptGolf",
+    images: [shareImage],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PromptGolf — LeetCode for AI-era software specs",
+    description: "Competitive benchmark for AI-spec writing: fewer prompts, more passing tests.",
+    images: [shareImage],
+  },
 };
 
 export const viewport: Viewport = {
