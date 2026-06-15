@@ -3,6 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ArrowRight, EyeOff, ListChecks } from "lucide-react";
 import { AppShell, Eyebrow, GlassCard, Section } from "@/components/promptgolf/chrome";
+import { MockupCarousel } from "@/components/promptgolf/mockup-carousel";
 import { PromptRunner } from "@/components/promptgolf/prompt-runner";
 import { challenges, getChallenge } from "@/lib/promptgolf";
 
@@ -50,17 +51,20 @@ export default async function ChallengePage({ params }: { params: Promise<{ slug
 
       <Section className="pb-16 pt-4">
         <div className="grid gap-6 lg:grid-cols-2">
-          <GlassCard>
-            <div className="flex items-center gap-2.5"><ListChecks className="size-4 text-ink-muted" /><h3 className="font-mono text-xs uppercase tracking-[0.14em] text-ink-muted">Public requirements</h3></div>
-            <ul className="mt-4 grid gap-2">
-              {challenge.publicRequirements.map((requirement, index) => (
-                <li key={requirement} className="flex gap-3 text-sm text-ink-soft">
-                  <span className="font-mono text-ink-muted">{String(index + 1).padStart(2, "0")}</span>
-                  {requirement}
-                </li>
-              ))}
-            </ul>
-          </GlassCard>
+          <div className="flex flex-col gap-6">
+            <GlassCard>
+              <div className="flex items-center gap-2.5"><ListChecks className="size-4 text-ink-muted" /><h3 className="font-mono text-xs uppercase tracking-[0.14em] text-ink-muted">Public requirements</h3></div>
+              <ul className="mt-4 grid gap-2">
+                {challenge.publicRequirements.map((requirement, index) => (
+                  <li key={requirement} className="flex gap-3 text-sm text-ink-soft">
+                    <span className="font-mono text-ink-muted">{String(index + 1).padStart(2, "0")}</span>
+                    {requirement}
+                  </li>
+                ))}
+              </ul>
+            </GlassCard>
+            <MockupCarousel challengeSlug={challenge.slug} />
+          </div>
           <GlassCard>
             <div className="flex items-center gap-2.5"><EyeOff className="size-4 text-accent" /><h3 className="font-mono text-xs uppercase tracking-[0.14em] text-ink-muted">Hidden tests</h3></div>
             <div className="relative mt-4 aspect-[3/2] overflow-hidden rounded-md border border-rule bg-paper">
