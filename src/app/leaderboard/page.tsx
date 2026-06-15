@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { AppShell, Eyebrow, GlassCard, Section } from "@/components/promptgolf/chrome";
 import { RunPreview } from "@/components/promptgolf/scorecard";
@@ -9,10 +10,25 @@ export default function LeaderboardPage() {
 
   return (
     <AppShell>
-      <Section className="pb-10 pt-16">
-        <Eyebrow>Leaderboard</Eyebrow>
-        <h1 className="mt-6 max-w-4xl text-5xl font-semibold tracking-[-0.04em] text-balance text-ink md:text-7xl">Fewer prompts. More passing tests.</h1>
-        <p className="mt-6 max-w-2xl text-lg leading-8 text-ink-soft">The demo ranks prompt quality by public checks, hidden domain checks, UX/style, and prompt efficiency. Runtime is intentionally not part of scoring.</p>
+      <Section className="grid items-center gap-10 pb-10 pt-16 lg:grid-cols-[minmax(0,0.95fr)_minmax(360px,0.75fr)]">
+        <div>
+          <Eyebrow>Leaderboard</Eyebrow>
+          <h1 className="mt-6 max-w-4xl text-5xl font-semibold tracking-[-0.04em] text-balance text-ink md:text-7xl">Fewer prompts. More passing tests.</h1>
+          <p className="mt-6 max-w-2xl text-lg leading-8 text-ink-soft">The demo ranks prompt quality by public checks, hidden domain checks, UX/style, and prompt efficiency. Runtime is intentionally not part of scoring.</p>
+        </div>
+        <div className="relative overflow-hidden rounded-lg border border-rule bg-card shadow-[0_1px_2px_oklch(0.23_0.022_268/0.05)]">
+          <div className="relative aspect-[3/2]">
+            <Image
+              src="/promptgolf-scorecard-bg.png"
+              alt="Illustration of a generated app turning into scored prompt evaluation cards"
+              fill
+              priority
+              className="object-cover"
+              sizes="(min-width: 1024px) 38vw, 100vw"
+            />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-paper/65 via-transparent to-transparent" aria-hidden="true" />
+        </div>
       </Section>
 
       <Section className="py-8">

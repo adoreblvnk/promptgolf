@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ArrowRight, EyeOff, ListChecks } from "lucide-react";
 import { AppShell, Eyebrow, GlassCard, Section } from "@/components/promptgolf/chrome";
@@ -62,6 +63,16 @@ export default async function ChallengePage({ params }: { params: Promise<{ slug
           </GlassCard>
           <GlassCard>
             <div className="flex items-center gap-2.5"><EyeOff className="size-4 text-accent" /><h3 className="font-mono text-xs uppercase tracking-[0.14em] text-ink-muted">Hidden tests</h3></div>
+            <div className="relative mt-4 aspect-[3/2] overflow-hidden rounded-md border border-rule bg-paper">
+              <Image
+                src="/promptgolf-hidden-tests-bg.png"
+                alt="Illustration of hidden evaluator checks surrounding a generated checkout interface"
+                fill
+                className="object-cover"
+                sizes="(min-width: 1024px) 50vw, 100vw"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-paper/80 via-paper/15 to-transparent" aria-hidden="true" />
+            </div>
             <p className="mt-4 text-sm leading-6 text-ink">{challenge.thesis}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               {challenge.hiddenTeasers.slice(0, 10).map((teaser) => (

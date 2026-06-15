@@ -407,7 +407,7 @@ export function LiveRunView({ id }: { id: string }) {
             </div>
             <span className="rounded border border-rule bg-paper px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-ink-soft">{run.diagnosis.verdict}</span>
           </div>
-          <div className="mt-4 grid gap-3 lg:grid-cols-[220px_220px_minmax(0,1fr)]">
+          <div className="mt-4 grid gap-3 lg:grid-cols-3">
             <SkillScoreCard label="Prompting" score={run.diagnosis.promptingScore} feedback={run.diagnosis.promptingFeedback} tone="prompt" />
             <SkillScoreCard label="Technical" score={run.diagnosis.technicalScore} feedback={run.diagnosis.technicalFeedback} tone="technical" />
             <div className="rounded-lg border border-rule bg-paper p-4">
@@ -459,7 +459,7 @@ function CategoryScore({ label, value, score }: { label: string; value: string; 
 function SkillScoreCard({ label, score, feedback, tone }: { label: string; score: number; feedback: string; tone: "prompt" | "technical" }) {
   const safeScore = Math.max(0, Math.min(10, Math.round(score)));
   return (
-    <div className="rounded-lg border border-rule bg-paper p-4">
+    <div className="rounded-lg border border-rule bg-paper p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">{label}</div>
         <div className="font-mono text-3xl font-semibold tabular-nums tracking-[-0.04em] text-ink">{safeScore}<span className="text-base text-ink-muted">/10</span></div>
