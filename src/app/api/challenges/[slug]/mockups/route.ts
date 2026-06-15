@@ -43,36 +43,28 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
 
   const requirements = [challenge.publicBrief, ...challenge.publicRequirements].join(" ");
 
-  const imagePrompts = [1, 2, 3].map(
-    () => `${requirements} ${STYLE_DIRECTION} White background, no text in the image, no letters.`
-  );
+  const imagePrompt = `${requirements} ${STYLE_DIRECTION} White background, no text in the image, no letters.`;
 
-  const results = await Promise.allSettled(
-    imagePrompts.map(async (prompt) => {
-      const res = await fetch(AGNES_IMAGE_API, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "agnes-image-2.0-flash",
-          prompt,
-          size: "1024x768",
-          extra_body: { response_format: "url" },
-        }),
-      });
-      if (!res.ok) {
-        throw new Error(`AGNES API returned ${res.status}`);
-      }
-      const data = await res.json();
-      return data?.data?.[0]?.url ?? null;
-    })
-  );
+  const res = await fetch(AGNES_IMAGE_API, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "agnes-image-2.0-flash",
+      prompt: imagePrompt,
+      size: "1024x768",
+      extra_body: { response_format: "url" },
+    }),
+  });
 
-  const images = results
-    .map((r) => (r.status === "fulfilled" ? r.value : null))
-    .filter((url): url is string => url !== null);
+  let images: string[] = [];
+  if (res.ok) {
+    const data = await res.json();
+    const url = data?.data?.[0]?.url;
+    if (url) images = [url];
+  }
 
   return NextResponse.json({ images });
 }
