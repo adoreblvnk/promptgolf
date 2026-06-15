@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: "Challenge not found" }, { status: 404 });
   }
 
-  const apiKey = process.env.AGNES_KEY?.trim();
+  const apiKey = process.env.AGNES_AI_API_KEY?.trim();
   if (!apiKey) {
     return NextResponse.json({ error: "AGNES image generation is not configured" }, { status: 503 });
   }
