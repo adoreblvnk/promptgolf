@@ -171,11 +171,11 @@ function configuredStatus(name: string, role: string, envName: string, liveDetai
 
 export function getDaytonaAdapterStatus(): ProviderStatus {
   return configuredStatus(
-    "Daytona",
+    "Sandbox",
     "sandbox runner",
     "DAYTONA_API_KEY",
-    "Live sandbox API credentials are configured. PromptGolf probes Daytona connectivity before reporting run infrastructure state.",
-    "DAYTONA_API_KEY is not configured, so sandbox execution is marked unavailable instead of simulated.",
+    "Live sandbox API credentials are configured. PromptGolf probes connectivity before reporting run infrastructure state.",
+    "Sandbox credentials are not configured, so sandbox execution is marked unavailable instead of simulated.",
   );
 }
 
@@ -239,7 +239,7 @@ export async function probeDaytonaStatus(): Promise<ProviderProbe> {
       ...base,
       status: "connected",
       latencyMs: 1,
-      output: "Stubbed CI probe: Daytona sandbox API credential accepted at adapter boundary.",
+      output: "Stubbed CI probe: sandbox API credential accepted at adapter boundary.",
     };
   }
 
@@ -261,7 +261,7 @@ export async function probeDaytonaStatus(): Promise<ProviderProbe> {
         mode: "degraded",
         status: "degraded",
         latencyMs: elapsedMs(start),
-        detail: `Daytona credentialed sandbox probe returned HTTP ${response.status}; run infrastructure is degraded, not simulated.`,
+        detail: `Credentialed sandbox probe returned HTTP ${response.status}; run infrastructure is degraded, not simulated.`,
       };
     }
 
@@ -277,7 +277,7 @@ export async function probeDaytonaStatus(): Promise<ProviderProbe> {
       mode: "degraded",
       status: "degraded",
       latencyMs: elapsedMs(start),
-      detail: `Daytona credentialed probe failed: ${sanitizeError(error)}. Run infrastructure is degraded, not simulated.`,
+      detail: `Credentialed sandbox probe failed: ${sanitizeError(error)}. Run infrastructure is degraded, not simulated.`,
     };
   } finally {
     clearTimeout(timeout);

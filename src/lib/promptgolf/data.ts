@@ -96,8 +96,8 @@ function makeStages(): RunStage[] {
       status: daytona.mode === "live" ? "running" : "queued",
       detail:
         daytona.mode === "live"
-          ? "Daytona live adapter is configured; run creation probes the sandbox API and reports connected or degraded state."
-          : "Daytona live adapter is unavailable because DAYTONA_API_KEY is not configured.",
+          ? "Live sandbox adapter is configured; run creation probes the sandbox API and reports connected or degraded state."
+          : "Live sandbox adapter is unavailable because sandbox credentials are not configured.",
     },
     { label: "Generate app", status: "complete", detail: "Agent applied the submitted spec to a Next.js checkout implementation." },
     { label: "Install + build", status: "complete", detail: "npm install cache restored, TypeScript build completed." },
@@ -195,7 +195,7 @@ export const runs: Run[] = seededRunsBase.map((run) => {
     provider: "Codex CLI",
     model: "gpt-5.5",
     gateway: tokenRouter.mode === "live" ? `TokenRouter live gateway · ${tokenRouter.model}` : "TokenRouter unavailable · set TOKENROUTER_API_KEY",
-    sandbox: daytona.mode === "live" ? "Daytona live sandbox adapter configured" : "Daytona unavailable · set DAYTONA_API_KEY",
+    sandbox: daytona.mode === "live" ? "Live sandbox adapter configured" : "Sandbox unavailable · configure credentials",
     stages: makeStages(),
     tests,
     score: scoreRun(tests, run.uxScore, run.promptCount),

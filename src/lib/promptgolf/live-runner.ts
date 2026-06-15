@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { collectRunProviderState, generateLiveTestDrafts } from "./adapters";
-import { CHECKOUT_REQUIRED_CONTRACT_MARKERS, CHECKOUT_REQUIRED_TEST_IDS, checkoutEvaluatorSpecs } from "./evaluator-specs";
+import { CHECKOUT_REQUIRED_CONTRACT_MARKERS, checkoutEvaluatorSpecs } from "./evaluator-specs";
 import { deterministicCheckoutArtifact } from "./live-run-fixture";
 import { appendLiveRunEvent, createLiveRun, getLiveRun, sanitizeLog, updateLiveRun } from "./live-run-store";
 import { evaluateSpecsWithPlaywright } from "./playwright-evaluator";
@@ -49,19 +49,13 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, message: string):
   }
 }
 
-function missingRequiredTestIds(html: string) {
-  return CHECKOUT_REQUIRED_TEST_IDS.filter((id) => !html.includes(`data-testid=\"${id}\"`) && !html.includes(`data-testid='${id}'`) && !html.includes(`data-testid=${id}`));
-}
-
 function observeArtifactContract(id: string, html: string, provider: string) {
-  const missing = missingRequiredTestIds(html);
-  if (missing.length) appendLiveRunEvent(id, "generate", "warning", `${provider} artifact missed evaluator hooks: ${missing.slice(0, 5).join(", ")}${missing.length > 5 ? "…" : ""}. Playwright will score these as behavior/testability failures instead of repairing the app.`);
   const missingContract = CHECKOUT_REQUIRED_CONTRACT_MARKERS.filter((snippet) => !html.toLowerCase().includes(snippet.toLowerCase()));
   if (missingContract.length) appendLiveRunEvent(id, "generate", "warning", `${provider} artifact missed checkout contract markers: ${missingContract.slice(0, 5).join(", ")}${missingContract.length > 5 ? "…" : ""}. The generated app will be evaluated as-is.`);
 }
 
 async function waitForPreviewReady(id: string, url: string) {
-  appendLiveRunEvent(id, "sandbox", "info", "Waiting for Daytona preview to serve the generated artifact before starting Playwright.");
+  appendLiveRunEvent(id, "sandbox", "info", "Waiting for sandbox preview to serve the generated artifact before starting Playwright.");
   let lastObservation = "no response received";
   for (let attempt = 1; attempt <= 20; attempt += 1) {
     try {
@@ -71,11 +65,11 @@ async function waitForPreviewReady(id: string, url: string) {
       const bodyPreview = body.replace(/\s+/g, " ").slice(0, 160);
       lastObservation = `HTTP ${response.status}; body: ${bodyPreview || "empty"}`;
     } catch {
-      lastObservation = "fetch failed while polling Daytona preview";
+      lastObservation = "fetch failed while polling sandbox preview";
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-  throw new Error(`Daytona preview did not serve the generated checkout artifact before the demo timeout (${sanitizeLog(lastObservation)})`);
+  throw new Error(`Sandbox preview did not serve the generated checkout artifact before the demo timeout (${sanitizeLog(lastObservation)})`);
 }
 
 function previewUrlFrom(value: unknown) {
@@ -158,7 +152,7 @@ async function generateViaOpenAICompatible(input: { apiKey: string; baseUrl: str
           {
             role: "system",
             content:
-              "Return one compact self-contained HTML document only. No markdown. Inline CSS and JS. Public brief: checkout page with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation. Public harness contract: seed items Canvas tote, Espresso beans, Stoneware mug; data-testid subtotal, discount, shipping, tax, total, promo-input, apply-promo, checkout, confirmation, qty-bag, qty-beans, qty-mug, item-mug; accessible quantity labels including Increase Canvas tote, Decrease Canvas tote, Increase Stoneware mug, Decrease Stoneware mug. Keep code concise. Implement exactly what the user's prompt asks. If the prompt omits business edge cases, use straightforward happy-path behavior rather than adding production safeguards.",
+              "Return one compact self-contained HTML document only. No markdown. Inline CSS and JS. Public brief: checkout page with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation. Use seed items Canvas tote, Espresso beans, and Stoneware mug. Use semantic HTML with visible labels for Promo code, Subtotal, Discount, Shipping, Tax, Total, and accessible button names such as Increase Canvas tote, Decrease Canvas tote, Increase Stoneware mug, and Decrease Stoneware mug. Keep code concise. Implement exactly what the user's prompt asks. If the prompt omits business edge cases, use straightforward happy-path behavior rather than adding production safeguards.",
           },
           { role: "user", content: input.prompt.slice(0, 6000) },
         ],
@@ -208,20 +202,20 @@ async function generateArtifact(id: string, prompt: string) {
 async function attemptDaytonaPreview(id: string, html: string) {
   if (stubsEnabled()) {
     updateLiveRun(id, { sandboxMode: "CI stub · local artifact route" });
-    appendLiveRunEvent(id, "sandbox", "info", "CI stub mode avoids Daytona network calls and uses the local artifact route.");
+    appendLiveRunEvent(id, "sandbox", "info", "CI stub mode avoids sandbox network calls and uses the local artifact route.");
     return undefined;
   }
   if (!process.env.DAYTONA_API_KEY?.trim()) {
-    updateLiveRun(id, { sandboxMode: "Daytona unavailable · no local fallback" });
+    updateLiveRun(id, { sandboxMode: "Sandbox unavailable · no local fallback" });
     if (ALLOW_LOCAL_SANDBOX_FALLBACK) {
-      appendLiveRunEvent(id, "sandbox", "warning", "DAYTONA_API_KEY is not configured. Explicit PROMPTGOLF_ALLOW_LOCAL_SANDBOX_FALLBACK=1 is set, so this run will use the local artifact route and be labeled degraded.");
+      appendLiveRunEvent(id, "sandbox", "warning", "Sandbox credentials are not configured. Explicit PROMPTGOLF_ALLOW_LOCAL_SANDBOX_FALLBACK=1 is set, so this run will use the local artifact route and be labeled degraded.");
       return undefined;
     }
-    throw new Error("DAYTONA_API_KEY is not configured. Live demo mode requires Daytona unless PROMPTGOLF_ALLOW_LOCAL_SANDBOX_FALLBACK=1 is explicitly set.");
+    throw new Error("Sandbox credentials are not configured. Live demo mode requires the sandbox adapter unless PROMPTGOLF_ALLOW_LOCAL_SANDBOX_FALLBACK=1 is explicitly set.");
   }
 
   try {
-    appendLiveRunEvent(id, "sandbox", "info", "Attempting Daytona SDK sandbox creation for preview execution.");
+    appendLiveRunEvent(id, "sandbox", "info", "Attempting sandbox creation for preview execution.");
     const sdk = await import("@daytonaio/sdk");
     const daytona = new sdk.Daytona();
     const sandbox = await daytona.create(
@@ -234,8 +228,8 @@ async function attemptDaytonaPreview(id: string, html: string) {
       },
       { timeout: DAYTONA_CREATE_TIMEOUT_SECONDS },
     );
-    if (!sandbox || typeof sandbox !== "object") throw new Error("Daytona SDK did not return a sandbox object");
-    if ("waitUntilStarted" in sandbox && typeof sandbox.waitUntilStarted === "function") await withTimeout(sandbox.waitUntilStarted(), DAYTONA_STEP_TIMEOUT_MS, "Daytona sandbox did not reach started state before the demo timeout");
+    if (!sandbox || typeof sandbox !== "object") throw new Error("Sandbox SDK did not return a sandbox object");
+    if ("waitUntilStarted" in sandbox && typeof sandbox.waitUntilStarted === "function") await withTimeout(sandbox.waitUntilStarted(), DAYTONA_STEP_TIMEOUT_MS, "Sandbox did not reach started state before the demo timeout");
 
     const tempDir = await mkdtemp(path.join(tmpdir(), "promptgolf-daytona-"));
     try {
@@ -243,10 +237,10 @@ async function attemptDaytonaPreview(id: string, html: string) {
       await writeFile(localFile, html, "utf8");
       const remoteDir = "/home/daytona/promptgolf-live";
       if (!("fs" in sandbox) || typeof sandbox.fs !== "object" || !sandbox.fs || !("uploadFile" in sandbox.fs)) {
-        throw new Error("Daytona sandbox fs.uploadFile is unavailable in this SDK shape");
+        throw new Error("Sandbox fs.uploadFile is unavailable in this SDK shape");
       }
       if (!("process" in sandbox) || typeof sandbox.process !== "object" || !sandbox.process || !("createSession" in sandbox.process) || !("executeSessionCommand" in sandbox.process)) {
-        throw new Error("Daytona sandbox process session API is unavailable in this SDK shape");
+        throw new Error("Sandbox process session API is unavailable in this SDK shape");
       }
       const processApi = sandbox.process as {
         createSession: (sessionId: string) => Promise<void>;
@@ -278,33 +272,33 @@ PY`,
         },
         10,
       );
-      if (localProbe.exitCode && localProbe.exitCode !== 0) throw new Error(`Daytona sandbox local server probe failed: ${localProbe.stderr || localProbe.stdout || `exit ${localProbe.exitCode}`}`);
-      if (!localProbe.stdout?.includes("probe_ok") || !localProbe.stdout.includes("True")) throw new Error(`Daytona sandbox local server did not serve an HTML artifact: ${localProbe.stdout || localProbe.stderr || "empty probe output"}`);
+      if (localProbe.exitCode && localProbe.exitCode !== 0) throw new Error(`Sandbox local server probe failed: ${localProbe.stderr || localProbe.stdout || `exit ${localProbe.exitCode}`}`);
+      if (!localProbe.stdout?.includes("probe_ok") || !localProbe.stdout.includes("True")) throw new Error(`Sandbox local server did not serve an HTML artifact: ${localProbe.stdout || localProbe.stderr || "empty probe output"}`);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
 
     const preview =
       "getSignedPreviewUrl" in sandbox && typeof sandbox.getSignedPreviewUrl === "function"
-        ? await withTimeout(sandbox.getSignedPreviewUrl(3000, 300), 10000, "Daytona signed preview URL was not returned before the demo timeout")
+        ? await withTimeout(sandbox.getSignedPreviewUrl(3000, 300), 10000, "Sandbox signed preview URL was not returned before the demo timeout")
         : "getPreviewLink" in sandbox && typeof sandbox.getPreviewLink === "function"
-          ? await withTimeout(sandbox.getPreviewLink(3000), 10000, "Daytona preview link was not returned before the demo timeout")
+          ? await withTimeout(sandbox.getPreviewLink(3000), 10000, "Sandbox preview link was not returned before the demo timeout")
           : undefined;
     const previewUrl = previewUrlFrom(preview);
     if (previewUrl?.startsWith("http")) {
       await waitForPreviewReady(id, previewUrl);
-      updateLiveRun(id, { sandboxMode: "Daytona sandbox preview", previewUrl, previewLabel: "Daytona preview" });
-      appendLiveRunEvent(id, "sandbox", "success", `Daytona sandbox preview available and serving generated artifact: ${previewUrl}`);
+      updateLiveRun(id, { sandboxMode: "Sandbox preview", previewUrl, previewLabel: "Sandbox preview" });
+      appendLiveRunEvent(id, "sandbox", "success", `Sandbox preview available and serving generated artifact: ${previewUrl}`);
       return previewUrl;
     }
-    throw new Error("Daytona sandbox started but no preview URL was returned");
+    throw new Error("Sandbox started but no preview URL was returned");
   } catch (error) {
-    updateLiveRun(id, { sandboxMode: ALLOW_LOCAL_SANDBOX_FALLBACK ? "local fallback · Daytona SDK degraded" : "Daytona SDK degraded · no local fallback" });
+    updateLiveRun(id, { sandboxMode: ALLOW_LOCAL_SANDBOX_FALLBACK ? "local fallback · sandbox SDK degraded" : "Sandbox SDK degraded · no local fallback" });
     if (ALLOW_LOCAL_SANDBOX_FALLBACK) {
-      appendLiveRunEvent(id, "sandbox", "warning", `Daytona sandbox attempt failed: ${sanitizeLog(error instanceof Error ? error.message : String(error))}. Explicit local fallback is enabled, so Playwright will use the local artifact route.`);
+      appendLiveRunEvent(id, "sandbox", "warning", `Sandbox attempt failed: ${sanitizeLog(error instanceof Error ? error.message : String(error))}. Explicit local fallback is enabled, so Playwright will use the local artifact route.`);
       return undefined;
     }
-    throw new Error(`Daytona sandbox attempt failed and live demo mode does not use local fallback: ${sanitizeLog(error instanceof Error ? error.message : String(error))}`);
+    throw new Error(`Sandbox attempt failed and live demo mode does not use local fallback: ${sanitizeLog(error instanceof Error ? error.message : String(error))}`);
   }
 }
 
@@ -345,7 +339,7 @@ async function executeLiveRun(id: string, origin: string) {
 
     const daytonaPreview = await attemptDaytonaPreview(id, html);
     const localPreview = `${origin}/api/live-runs/${id}/artifact`;
-    if (!daytonaPreview) updateLiveRun(id, { previewUrl: localPreview, previewLabel: stubsEnabled() ? "Local generated artifact · CI stub" : "Local generated artifact · explicit Daytona fallback" });
+    if (!daytonaPreview) updateLiveRun(id, { previewUrl: localPreview, previewLabel: stubsEnabled() ? "Local generated artifact · CI stub" : "Local generated artifact · explicit sandbox fallback" });
 
     const testUrl = daytonaPreview ?? localPreview;
     await generateTokenRouterEvaluatorDrafts(id);

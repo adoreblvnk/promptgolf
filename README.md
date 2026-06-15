@@ -10,7 +10,7 @@ The current demo is being prepared for [Agnes AI Hackathon @ SMU](https://luma.c
 2. Start the Mini Checkout + Promo Code Engine challenge.
 3. Read the public brief and hidden-test teaser.
 4. Submit a prompt from the challenge page; the app starts a live run and redirects to `/live-runs/[id]`.
-5. Inspect the generated checkout preview, hidden-test replay, streaming log, Daytona sandbox posture, and TokenRouter/Agnes provider state.
+5. Inspect the generated checkout preview, hidden-test replay, streaming log, sandbox posture, and TokenRouter/Agnes provider state.
 6. Compare the seeded naive, structured, and expert reference runs on the leaderboard.
 
 ## Stack
@@ -29,7 +29,7 @@ The current demo is being prepared for [Agnes AI Hackathon @ SMU](https://luma.c
 - Codex CLI provider is the default because the ChatGPT/Codex subscription is unlimited and separate from limited OpenAI provider credits.
 - Codex does not support AI SDK tool calls, so current generation/evaluation boundaries do not depend on Codex tool calls.
 - OpenAI is only a fallback path or future tool-call path.
-- Daytona, TokenRouter, and Agnes AI are behind live adapters. When keys exist, the app performs credentialed probes/model calls and reports connected or degraded state.
+- The sandbox runner, TokenRouter, and Agnes AI are behind live adapters. When keys exist, the app performs credentialed probes/model calls and reports connected or degraded state.
 - Agnes 2.0 Flash is the primary model path for checkout artifact generation and prompt feedback. TokenRouter uses `https://api.tokenrouter.com/v1` through an OpenAI-compatible adapter.
 - Tests use stubbed provider boundaries so CI never needs or exposes real secrets.
 
@@ -67,7 +67,7 @@ The submission path is intentionally real and provider-aware:
 
 1. The challenge form validates the prompt and starts a live run.
 2. Agnes 2.0 Flash generates a self-contained checkout artifact from the submitted spec.
-3. Daytona serves the preview when available; otherwise the app reports the fallback state honestly.
+3. The sandbox serves the preview when available; otherwise the app reports the fallback state honestly.
 4. TokenRouter drafts evaluator posture when configured.
 5. Playwright scores the generated app and streams the evidence to `/live-runs/[id]`.
 6. Seeded naive, structured, and expert scorecards remain available as stable reference runs.

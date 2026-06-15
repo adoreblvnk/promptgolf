@@ -9,11 +9,11 @@ This document is the source of truth for building PromptGolf. Current event link
 The current product slice is a real local flow with provider-backed boundaries. Provider integrations use live adapters where the required keys are present and report explicit unavailable/degraded state when a service cannot be reached.
 
 - The challenge page submits prompts through a server action that starts a live run and redirects to `/live-runs/[id]`.
-- The live run path uses Agnes 2.0 Flash generation, Daytona preview infrastructure when available, TokenRouter evaluator posture where configured, and Playwright scoring against the generated artifact.
+- The live run path uses Agnes 2.0 Flash generation, sandbox preview infrastructure when available, TokenRouter evaluator posture where configured, and Playwright scoring against the generated artifact.
 - `POST /api/runs` remains available for deterministic naive/structured/expert seeded reference runs.
-- Run pages render scorecards, public/hidden test results, generated-checkout preview, provider posture, and a sandbox/run timeline whose provider state is backed by Daytona/TokenRouter/Agnes adapters.
+- Run pages render scorecards, public/hidden test results, generated-checkout preview, provider posture, and a sandbox/run timeline whose provider state is backed by sandbox/TokenRouter/Agnes adapters.
 - The leaderboard ranks seeded runs by computed score.
-- `DAYTONA_API_KEY`, `TOKENROUTER_API_KEY`, and `AGNES_AI_API_KEY` are present in `.env`; do not print them. Use real Daytona/TokenRouter/Agnes adapter paths when provider work is requested, with unavailable/degraded states rather than fake provider success.
+- Sandbox, TokenRouter, and Agnes AI keys are present in `.env`; do not print them. Use real sandbox/TokenRouter/Agnes adapter paths when provider work is requested, with unavailable/degraded states rather than fake provider success.
 - Codex CLI via `ai-sdk-provider-codex-cli` remains the default builder-agent boundary; Codex has no AI SDK tool-call support, so AI SDK tool-calling flows should use Agnes AI or OpenAI adapters instead.
 - Verified commands: `npm run lint`, `npm run build`, `CI=1 npm run test:e2e`.
 
@@ -49,7 +49,7 @@ Project-relevant constraints to preserve:
 
 - The product must read as a production AI system, not a simple chatbot.
 - It should be ready for a short live demo and read as a polished working product.
-- Provider usage should fit the core loop; prioritize Daytona and TokenRouter where they materially improve the run/evaluation path.
+- Provider usage should fit the core loop; prioritize sandbox execution and TokenRouter where they materially improve the run/evaluation path.
 
 ## 6. Strategic framing
 
@@ -140,7 +140,7 @@ The product should feel complete enough for a live audience:
 - leaderboard
 - at least two challenge examples
 - one strong end-to-end demo showing naive vs structured/expert prompt performance
-- provider integration surfaces for Daytona and TokenRouter
+- provider integration surfaces for the sandbox runner and TokenRouter
 
 The backend can use product seed runs for demo scorecards, but provider execution/status must come from live adapters or explicit unavailable/degraded states.
 
@@ -377,13 +377,13 @@ Model/provider policy:
 - For AI SDK tool-calling flows, use Agnes AI or OpenAI. Prefer Agnes AI when it fits because `AGNES_AI_API_KEY` is present; use OpenAI as the reliable fallback, especially if Agnes behavior/API fit is weaker for a specific tool-call path. Decide per flow rather than hardcoding one global tool-calling provider.
 - OpenAI provider exists but credits are limited. Use it sparingly for fallback paths or flows that genuinely need tool-call support.
 - Do not use the Google AI SDK provider.
-- `DAYTONA_API_KEY`, `TOKENROUTER_API_KEY`, and `AGNES_AI_API_KEY` are present in `.env`; never print or commit their values. Daytona base URL: `https://app.daytona.io/api`. TokenRouter base URL: `https://api.tokenrouter.com/v1`. Agnes AI base URL: `https://apihub.agnes-ai.com/v1`. Keep live integrations behind adapters and surface unavailable/degraded state honestly on failure.
+- Sandbox, TokenRouter, and Agnes AI keys are present in `.env`; never print or commit their values. TokenRouter base URL: `https://api.tokenrouter.com/v1`. Agnes AI base URL: `https://apihub.agnes-ai.com/v1`. Keep live integrations behind adapters and surface unavailable/degraded state honestly on failure.
 
 ## 21. Provider strategy
 
-### Use: Daytona
+### Use: sandbox runner
 
-Daytona is the core sandbox layer: each PromptGolf run can create an isolated environment where an AI-generated app is built, executed, and tested safely.
+The sandbox runner is the core isolation layer: each PromptGolf run can create an isolated environment where an AI-generated app is built, executed, and tested safely.
 
 ### Use: TokenRouter
 
@@ -404,7 +404,7 @@ Recommended architecture:
 - Codex CLI community provider as the default model provider.
 - Agnes AI or OpenAI for AI SDK tool-calling flows; prefer Agnes AI for demo-visible paths, use OpenAI as the reliable low-credit fallback or when it is the better fit for a specific tool-call path.
 - TokenRouter as model gateway using `TOKENROUTER_API_KEY` and `https://api.tokenrouter.com/v1`, with explicit degraded/unavailable states if routing fails.
-- Daytona SDK/API for sandbox lifecycle and command execution using `DAYTONA_API_KEY` and `https://app.daytona.io/api`, with a credentialed status probe when sandbox creation is disabled.
+- Sandbox SDK/API for lifecycle and command execution, with a credentialed status probe when sandbox creation is disabled.
 - Playwright for deterministic app evaluation.
 - Simple local JSON/SQLite/Postgres storage depending on time.
 - Product seed runs for demo reliability, clearly separate from provider execution status.
@@ -440,7 +440,7 @@ npm install ai ai-sdk-provider-codex-cli @ai-sdk/openai zod lucide-react motion 
 npm install -D @playwright/test playwright
 ```
 
-Add Daytona when wiring the sandbox adapter; `DAYTONA_API_KEY` is present, so the blocker is implementation time/API fit, not missing credentials.
+Wire the sandbox adapter behind a narrow boundary; the blocker should be API fit and reliability, not product coupling.
 
 Use `@ai-sdk/openai` with TokenRouter's OpenAI-compatible `baseURL` (`https://api.tokenrouter.com/v1`) and `TOKENROUTER_API_KEY`; keep this path dependency-injectable for tests, not provider-mocked in production.
 
@@ -488,7 +488,7 @@ Required sections:
 - One-line positioning.
 - Three-step flow: Prompt → Build in Sandbox → Hidden Tests Score.
 - Demo challenge cards.
-- Provider integration badges for Daytona and TokenRouter.
+- Provider integration badges for the sandbox runner and TokenRouter.
 - CTA: “Try the Checkout Challenge.”
 
 ### Challenge page
@@ -510,7 +510,7 @@ Required sections:
 - Run status timeline: queued, generating, building, testing, scored.
 - Prompt count.
 - Model/provider used.
-- Daytona sandbox badge.
+- Sandbox runner badge.
 - TokenRouter badge.
 - Screenshot of generated app.
 - Scorecard.
@@ -616,9 +616,9 @@ Pasted Brief Prompt — 1 prompt:
 
 This makes the product thesis obvious.
 
-## 30. How to present Daytona usage
+## 30. How to present sandbox usage
 
-In the UI, show Daytona as core infrastructure:
+In the UI, show sandboxing as core infrastructure:
 
 - “Sandbox created.”
 - “Dependencies installed.”
@@ -626,13 +626,13 @@ In the UI, show Daytona as core infrastructure:
 - “Playwright evaluator attached.”
 - “Sandbox destroyed/reset.”
 
-If full Daytona integration is not ready, keep the architecture Daytona-ready with a thin sandbox-runner boundary:
+If full sandbox integration is not ready, keep the architecture ready with a thin sandbox-runner boundary:
 
 - create a run from a prompt and challenge
 - report run status through queued → generating → building → testing → scored/failed
 - return artifacts such as app URL, screenshots, logs, and scorecard
 
-If full sandbox creation is disabled, use the Daytona adapter for a credentialed connectivity/status probe and label the creation step disabled/degraded rather than successful.
+If full sandbox creation is disabled, use the sandbox adapter for a credentialed connectivity/status probe and label the creation step disabled/degraded rather than successful.
 
 ## 31. How to present TokenRouter usage
 
@@ -736,7 +736,7 @@ The product is successful if:
 - The prompt/spec guide makes the educational wedge obvious.
 - The demo shows naive vs structured/expert prompts producing different hidden-test scores.
 - The scorecard is visually polished.
-- Daytona and TokenRouter are integrated or represented through credible adapter-backed flows.
+- Sandbox execution and TokenRouter are integrated or represented through credible adapter-backed flows.
 - The product looks like a full working product, not a notebook or toy dashboard.
 
 ## 36. Suggested implementation order
@@ -748,7 +748,7 @@ The product is successful if:
 5. Build leaderboard.
 6. Add API routes for challenges/runs/score product seed data and provider-aware status.
 7. Add Codex-first model abstraction; keep TokenRouter/OpenAI/Agnes as optional routed paths.
-8. Add Daytona sandbox runner abstraction.
+8. Add sandbox runner abstraction.
 9. Add one actual Playwright test file or simulated test-run artifact for credibility.
 10. Polish UI and rehearse demo script.
 
@@ -761,7 +761,7 @@ The product is successful if:
 5. Show PromptGolf spec guide.
 6. Show expert prompt score: hidden tests pass because it includes ecommerce edge cases.
 7. Show leaderboard.
-8. Point to infrastructure: Daytona sandboxes or probes each run when the live adapter is enabled; Codex handles CLI builder-agent generation; TokenRouter routes model/test-generation calls and reports degraded/unavailable state on failure.
+8. Point to infrastructure: the sandbox runner creates or probes each run when the live adapter is enabled; Codex handles CLI builder-agent generation; TokenRouter routes model/test-generation calls and reports degraded/unavailable state on failure.
 9. Close: “In the AI-agent era, the scarce skill is not typing code. It is writing specs that survive reality.”
 
 ## 38. Final product narrative

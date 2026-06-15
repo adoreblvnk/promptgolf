@@ -56,7 +56,7 @@ export default function Home() {
         <div className="overflow-hidden rounded-lg border border-rule bg-card">
           <div className="grid divide-y divide-rule md:grid-cols-3 md:divide-x md:divide-y-0">
             <PipeStep icon={<Wand2 className="size-5" />} step="01" title="Agnes builds your spec" text="Agnes 2.0 Flash generates a real app from your prompt, exactly what you asked for and nothing you did not." />
-            <PipeStep icon={<Boxes className="size-5" />} step="02" title="Daytona serves it live" text="The build runs through the live sandbox path and comes back as an interactive app preview." />
+            <PipeStep icon={<Boxes className="size-5" />} step="02" title="Sandbox serves it live" text="The build runs through an isolated sandbox path and comes back as an interactive app preview." />
             <PipeStep icon={<FlaskConical className="size-5" />} step="03" title="Playwright scores it" text="Hidden Playwright checks tear the live app apart. Vague specs ship bugs; precise specs survive." />
           </div>
         </div>

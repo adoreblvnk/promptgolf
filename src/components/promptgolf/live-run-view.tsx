@@ -15,14 +15,14 @@ const HIGHLIGHT_CSS = `
 .pg-fail{outline:2px dashed #d40000!important;outline-offset:4px;border-radius:8px;background:rgba(212,0,0,.10)!important;box-shadow:0 0 0 6px rgba(212,0,0,.12)!important}`;
 
 const TARGETS: Record<string, string> = {
-  "public-cart": "promo-input",
+  "public-cart": "promoCode",
   cents: "total",
   "promo-normalize": "discount",
-  "invalid-code": "promo-input",
+  "invalid-code": "promoCode",
   "discount-floor": "total",
   "shipping-threshold": "shipping",
-  "quantity-boundaries": "qty-bag",
-  "out-of-stock": "item-mug",
+  "quantity-boundaries": "qtyCanvas",
+  "out-of-stock": "itemMug",
   "double-submit": "checkout",
   "mobile-a11y": "checkout",
 };
@@ -54,8 +54,36 @@ function byLabel(doc: Document, pattern: RegExp) {
   return candidates.find((element) => pattern.test(element.getAttribute("aria-label") ?? element.textContent ?? ""));
 }
 
+function byField(doc: Document, pattern: RegExp) {
+  const controls = [...doc.querySelectorAll<HTMLElement>("input, textarea, select")];
+  return controls.find((element) => {
+    const id = element.getAttribute("id");
+    const label = id ? doc.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent ?? "" : "";
+    const haystack = [label, element.getAttribute("aria-label"), element.getAttribute("placeholder"), element.getAttribute("name"), element.getAttribute("id")].filter(Boolean).join(" ");
+    return pattern.test(haystack);
+  });
+}
+
+function byVisibleText(doc: Document, pattern: RegExp) {
+  const candidates = [...doc.querySelectorAll<HTMLElement>("button, [role='button'], [role='status'], output, p, div, section, article, li, span, strong")];
+  return candidates.find((element) => pattern.test(element.textContent ?? ""));
+}
+
+function byCheckoutTarget(doc: Document, target: string) {
+  const fromTestId = byTestId(doc, target);
+  if (fromTestId) return fromTestId;
+  if (target === "promoCode" || target === "promo-input") return byField(doc, /promo|coupon|discount|code/i);
+  if (target === "applyPromo" || target === "apply-promo") return byLabel(doc, /apply|redeem|promo|coupon/i);
+  if (target === "checkout") return byLabel(doc, /checkout|confirm|place order|submit order|pay|order/i);
+  if (target === "confirmation") return byVisibleText(doc, /confirmed|success|thank|order placed|complete/i);
+  if (target === "itemMug" || target === "item-mug") return byVisibleText(doc, /stoneware mug/i);
+  if (target === "qtyCanvas" || target === "qty-bag") return byVisibleText(doc, /canvas tote/i);
+  if (["subtotal", "discount", "shipping", "tax", "total"].includes(target)) return byVisibleText(doc, new RegExp(target, "i"));
+  return undefined;
+}
+
 function setInput(doc: Document, value: string) {
-  const input = byTestId(doc, "promo-input") as HTMLInputElement | null;
+  const input = byCheckoutTarget(doc, "promoCode") as HTMLInputElement | HTMLTextAreaElement | null;
   if (!input) return;
   input.value = value;
   input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -69,22 +97,22 @@ function clickElement(element: Element | null | undefined) {
 async function replayAction(doc: Document, id: string) {
   if (id === "promo-normalize") {
     setInput(doc, "  save10 ");
-    clickElement(byTestId(doc, "apply-promo"));
+    clickElement(byCheckoutTarget(doc, "applyPromo"));
     await wait(180);
   }
   if (id === "invalid-code") {
     setInput(doc, "NOPE");
-    clickElement(byTestId(doc, "apply-promo"));
+    clickElement(byCheckoutTarget(doc, "applyPromo"));
     await wait(180);
   }
   if (id === "discount-floor") {
     setInput(doc, "BIGSAVE");
-    clickElement(byTestId(doc, "apply-promo"));
+    clickElement(byCheckoutTarget(doc, "applyPromo"));
     await wait(180);
   }
   if (id === "shipping-threshold" || id === "cents") {
     setInput(doc, "SAVE10");
-    clickElement(byTestId(doc, "apply-promo"));
+    clickElement(byCheckoutTarget(doc, "applyPromo"));
     await wait(180);
   }
   if (id === "quantity-boundaries") {
@@ -92,9 +120,9 @@ async function replayAction(doc: Document, id: string) {
     await wait(180);
   }
   if (id === "double-submit") {
-    clickElement(byTestId(doc, "checkout"));
+    clickElement(byCheckoutTarget(doc, "checkout"));
     await wait(100);
-    clickElement(byTestId(doc, "checkout"));
+    clickElement(byCheckoutTarget(doc, "checkout"));
     await wait(180);
   }
 }
@@ -183,7 +211,7 @@ export function LiveRunView({ id }: { id: string }) {
         const check = checks[index];
         setReplayIndex(index);
         await replayAction(doc, check.id).catch(() => undefined);
-        const target = byTestId(doc, TARGETS[check.id] ?? "total");
+        const target = byCheckoutTarget(doc, TARGETS[check.id] ?? "total");
         target?.classList.remove("pg-pass", "pg-fail");
         target?.classList.add("pg-scan");
         target?.scrollIntoView({ block: "center", behavior: "smooth" });

@@ -37,7 +37,7 @@ test("POST /api/runs classifies submissions and reports provider state", async (
   await expect(naivePayload).toMatchObject({ classification: "naive", runId: "naive-checkout", mode: "seeded-local-run" });
   expect(naivePayload.providerState).toEqual(
     expect.arrayContaining([
-      expect.objectContaining({ name: "Daytona", status: "connected", mode: "live" }),
+      expect.objectContaining({ name: "Sandbox", status: "connected", mode: "live" }),
       expect.objectContaining({ name: "Agnes AI", status: "connected", mode: "live" }),
       expect.objectContaining({ name: "TokenRouter", status: "connected", mode: "live" }),
     ]),

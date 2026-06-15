@@ -32,8 +32,6 @@ export type NaturalLanguageEvaluatorSpec = Omit<LiveRunTestResult, "passed" | "n
   assertions: EvaluatorAssertion[];
 };
 
-export const CHECKOUT_REQUIRED_TEST_IDS = ["subtotal", "discount", "shipping", "tax", "total", "promo-input", "apply-promo", "checkout", "confirmation", "qty-bag", "qty-beans", "qty-mug", "item-mug"];
-
 export const CHECKOUT_REQUIRED_CONTRACT_MARKERS = ["Cart items", "Order summary", "Canvas tote", "Espresso beans", "Stoneware mug", "Out of stock", "SAVE10", "FREESHIP", "BIGSAVE", "Increase Canvas tote", "Increase Stoneware mug", "Promo code"];
 
 export const checkoutEvaluatorSpecs: NaturalLanguageEvaluatorSpec[] = [
@@ -44,7 +42,7 @@ export const checkoutEvaluatorSpecs: NaturalLanguageEvaluatorSpec[] = [
     intent: "The generated checkout exposes the public cart, order-summary, promo, and checkout controls a user needs to complete the visible brief.",
     actions: [{ kind: "waitForText", pattern: "cart items|order summary" }],
     assertions: [
-      { kind: "textMatches", target: { by: "testId", value: "promo-input" }, pattern: ".*" },
+      { kind: "textMatches", target: { by: "testId", value: "promoCode" }, pattern: ".*" },
       { kind: "textMatches", target: { by: "testId", value: "checkout" }, pattern: ".*" },
     ],
   },
@@ -62,8 +60,8 @@ export const checkoutEvaluatorSpecs: NaturalLanguageEvaluatorSpec[] = [
     category: "hidden",
     intent: "Promo codes are normalized by trimming whitespace and matching case-insensitively.",
     actions: [
-      { kind: "fill", testId: "promo-input", value: "  save10 " },
-      { kind: "click", target: { by: "testId", value: "apply-promo" } },
+      { kind: "fill", testId: "promoCode", value: "  save10 " },
+      { kind: "click", target: { by: "testId", value: "applyPromo" } },
     ],
     assertions: [{ kind: "moneyLessThan", testId: "discount", cents: 0 }],
   },
@@ -73,8 +71,8 @@ export const checkoutEvaluatorSpecs: NaturalLanguageEvaluatorSpec[] = [
     category: "hidden",
     intent: "Invalid promo codes produce clear, recoverable feedback instead of silently failing.",
     actions: [
-      { kind: "fill", testId: "promo-input", value: "NOPE" },
-      { kind: "click", target: { by: "testId", value: "apply-promo" } },
+      { kind: "fill", testId: "promoCode", value: "NOPE" },
+      { kind: "click", target: { by: "testId", value: "applyPromo" } },
     ],
     assertions: [{ kind: "textMatches", target: { by: "text", pattern: "invalid|not valid|unknown" }, pattern: "invalid|not valid|unknown" }],
   },
@@ -84,8 +82,8 @@ export const checkoutEvaluatorSpecs: NaturalLanguageEvaluatorSpec[] = [
     category: "hidden",
     intent: "Large discounts are capped so the payable total never becomes negative.",
     actions: [
-      { kind: "fill", testId: "promo-input", value: "BIGSAVE" },
-      { kind: "click", target: { by: "testId", value: "apply-promo" } },
+      { kind: "fill", testId: "promoCode", value: "BIGSAVE" },
+      { kind: "click", target: { by: "testId", value: "applyPromo" } },
     ],
     assertions: [{ kind: "moneyAtLeast", testId: "total", cents: 0 }],
   },
@@ -95,8 +93,8 @@ export const checkoutEvaluatorSpecs: NaturalLanguageEvaluatorSpec[] = [
     category: "hidden",
     intent: "Free shipping is computed from the intended pre-discount subtotal threshold.",
     actions: [
-      { kind: "fill", testId: "promo-input", value: "SAVE10" },
-      { kind: "click", target: { by: "testId", value: "apply-promo" } },
+      { kind: "fill", testId: "promoCode", value: "SAVE10" },
+      { kind: "click", target: { by: "testId", value: "applyPromo" } },
     ],
     assertions: [{ kind: "moneyEquals", testId: "shipping", cents: 0 }],
   },
@@ -107,7 +105,7 @@ export const checkoutEvaluatorSpecs: NaturalLanguageEvaluatorSpec[] = [
     intent: "Quantity controls enforce stock limits and do not let out-of-stock zero-quantity items decrement below zero.",
     actions: [{ kind: "click", target: { by: "label", pattern: "increase canvas tote" } }],
     assertions: [
-      { kind: "numberAtMost", testId: "qty-bag", max: 3 },
+      { kind: "numberAtMost", testId: "qtyCanvas", max: 3 },
       { kind: "isDisabled", target: { by: "label", pattern: "decrease stoneware mug" } },
     ],
   },
@@ -118,7 +116,7 @@ export const checkoutEvaluatorSpecs: NaturalLanguageEvaluatorSpec[] = [
     intent: "Out-of-stock items are visibly labeled and cannot be added to the cart.",
     actions: [],
     assertions: [
-      { kind: "textMatches", target: { by: "testIdText", testId: "item-mug", pattern: "out of stock|stock 0" }, pattern: "out of stock|stock 0" },
+      { kind: "textMatches", target: { by: "testIdText", testId: "itemMug", pattern: "out of stock|stock 0" }, pattern: "out of stock|stock 0" },
       { kind: "isDisabled", target: { by: "label", pattern: "increase stoneware mug" } },
     ],
   },

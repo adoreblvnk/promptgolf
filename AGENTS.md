@@ -23,7 +23,7 @@ PromptGolf is a competitive benchmark for AI-spec writing: fewer prompts, more p
 - Agnes AI or OpenAI for AI SDK tool-calling flows; prefer Agnes AI for demo-visible paths and OpenAI as fallback/specific-fit provider.
 - Do not use the Google AI SDK provider.
 - TokenRouter as model gateway where possible.
-- Daytona as sandbox/run infrastructure where possible.
+- Sandbox/run infrastructure behind an adapter where possible.
 - Playwright for deterministic app evaluation.
 
 ## Model/provider policy
@@ -46,9 +46,8 @@ Tool-calling provider notes:
 Environment/API key notes:
 
 - `.env` already has some keys. Never commit or print real API keys.
-- Daytona API base URL: `https://app.daytona.io/api`.
 - TokenRouter API base URL: `https://api.tokenrouter.com/v1`.
-- Keep Daytona/TokenRouter/Agnes integrations behind adapters. When keys are absent, report unavailable/degraded state honestly rather than simulating provider success.
+- Keep sandbox/TokenRouter/Agnes integrations behind adapters. When keys are absent, report unavailable/degraded state honestly rather than simulating provider success.
 
 ## Primary challenge
 
@@ -86,7 +85,7 @@ Scoring should reward public tests, hidden tests, UX/style, and fewer prompts. D
 
 Use:
 
-- Daytona: isolated run/build/test sandbox using `DAYTONA_API_KEY`; if sandbox creation is not enabled, show a real credentialed connectivity/status probe plus an honest disabled/degraded state.
+- Sandbox runner: isolated run/build/test sandbox; if sandbox creation is not enabled, show a real credentialed connectivity/status probe plus an honest disabled/degraded state.
 - TokenRouter: model gateway for hidden-test generation, prompt feedback, tool-calling model paths, and model usage display using `TOKENROUTER_API_KEY`.
 - Agnes AI: model backend/test generator and primary tool-calling provider candidate using `AGNES_AI_API_KEY`.
 

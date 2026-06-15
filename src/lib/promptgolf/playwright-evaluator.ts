@@ -11,15 +11,149 @@ function moneyToCents(value: string) {
   return Math.round(Number(cleaned) * 100);
 }
 
-async function text(page: Page, testId: string) {
-  return (await page.getByTestId(testId).innerText({ timeout: 2500 })).trim();
+const checkoutTerms: Record<string, { labels?: string[]; testIds?: string[]; css?: string[]; text?: string }> = {
+  promoCode: {
+    labels: ["promo", "coupon", "discount code", "code"],
+    testIds: ["promo-input", "promo", "coupon-input", "discount-code"],
+    css: ["input", "textarea"],
+  },
+  applyPromo: {
+    labels: ["apply", "redeem", "use code", "promo", "coupon"],
+    testIds: ["apply-promo", "apply-coupon", "redeem-code"],
+    css: ["button"],
+  },
+  checkout: {
+    labels: ["checkout", "confirm", "place order", "submit order", "pay", "order"],
+    testIds: ["checkout", "confirm-order", "place-order"],
+    css: ["button"],
+  },
+  confirmation: {
+    labels: ["confirmed", "success", "thank", "order placed", "complete"],
+    testIds: ["confirmation", "success", "order-confirmation"],
+    text: "confirmed|success|thank|order placed|complete",
+  },
+  qtyCanvas: { labels: ["canvas tote"], testIds: ["qty-bag", "quantity-bag", "qty-canvas", "quantity-canvas"] },
+  qtyBeans: { labels: ["espresso beans"], testIds: ["qty-beans", "quantity-beans"] },
+  qtyMug: { labels: ["stoneware mug"], testIds: ["qty-mug", "quantity-mug"] },
+  itemMug: { labels: ["stoneware mug"], testIds: ["item-mug", "mug", "stoneware-mug"], text: "stoneware mug" },
+};
+
+const moneyLabels: Record<string, string[]> = {
+  subtotal: ["subtotal", "items total"],
+  discount: ["discount", "promo", "coupon", "savings"],
+  shipping: ["shipping", "delivery"],
+  tax: ["tax", "sales tax", "vat"],
+  total: ["total", "grand total", "order total", "amount due"],
+};
+
+function escapedAttribute(value: string) {
+  return value.replace(/"/g, "\\\"");
 }
 
-function locator(page: Page, target: EvaluatorTarget): Locator {
-  if (target.by === "testId") return page.getByTestId(target.value);
-  if (target.by === "label") return page.getByLabel(pattern(target.pattern));
-  if (target.by === "text") return page.getByText(pattern(target.pattern)).first();
-  return page.getByTestId(target.testId).getByText(pattern(target.pattern));
+function semanticCandidates(page: Page, key: string): Locator[] {
+  const config = checkoutTerms[key];
+  const candidates: Locator[] = [page.getByTestId(key)];
+
+  for (const testId of config?.testIds ?? []) {
+    if (testId !== key) candidates.push(page.getByTestId(testId));
+  }
+
+  for (const label of config?.labels ?? []) {
+    candidates.push(page.getByLabel(pattern(label)).first());
+    candidates.push(page.getByRole("button", { name: pattern(label) }).first());
+  }
+
+  if (config?.css?.includes("input")) {
+    const attrs = (config.labels ?? []).flatMap((label) => [
+      `input[aria-label*="${escapedAttribute(label)}" i]`,
+      `input[placeholder*="${escapedAttribute(label)}" i]`,
+      `input[name*="${escapedAttribute(label)}" i]`,
+      `input[id*="${escapedAttribute(label)}" i]`,
+      `textarea[aria-label*="${escapedAttribute(label)}" i]`,
+      `textarea[placeholder*="${escapedAttribute(label)}" i]`,
+    ]);
+    if (attrs.length) candidates.push(page.locator(attrs.join(", ")).first());
+  }
+
+  if (config?.css?.includes("button")) {
+    const attrs = (config.labels ?? []).flatMap((label) => [
+      `button[aria-label*="${escapedAttribute(label)}" i]`,
+      `button:has-text("${escapedAttribute(label)}")`,
+      `[role="button"][aria-label*="${escapedAttribute(label)}" i]`,
+      `[role="button"]:has-text("${escapedAttribute(label)}")`,
+    ]);
+    if (attrs.length) candidates.push(page.locator(attrs.join(", ")).first());
+  }
+
+  if (config?.text) candidates.push(page.getByText(pattern(config.text)).first());
+
+  return candidates;
+}
+
+async function firstAvailable(candidates: Locator[], timeoutMs = 900) {
+  for (const candidate of candidates) {
+    const locator = candidate.first();
+    if ((await locator.count().catch(() => 0)) === 0) continue;
+    await locator.waitFor({ state: "visible", timeout: timeoutMs }).catch(() => undefined);
+    if (await locator.isVisible().catch(() => false)) return locator;
+  }
+  throw new Error("Expected generated app to expose the requested control or content, but no matching visible element was found.");
+}
+
+async function locator(page: Page, target: EvaluatorTarget): Promise<Locator> {
+  if (target.by === "testId") return firstAvailable(semanticCandidates(page, target.value));
+  if (target.by === "label") return firstAvailable([page.getByLabel(pattern(target.pattern)).first(), page.getByRole("button", { name: pattern(target.pattern) }).first()]);
+  if (target.by === "text") return firstAvailable([page.getByText(pattern(target.pattern)).first()]);
+  const region = await firstAvailable(semanticCandidates(page, target.testId));
+  return region.getByText(pattern(target.pattern)).first();
+}
+
+async function bodyText(page: Page) {
+  return (await page.locator("body").innerText({ timeout: 2500 })).trim();
+}
+
+function firstMoneyNearLabel(source: string, labels: string[]) {
+  const normalized = source.replace(/\s+/g, " ");
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const after = normalized.match(new RegExp(`\\b${escaped}\\b[^$0-9-]{0,30}(-?\\$?\\d+(?:\\.\\d{2})?)`, "i"));
+    if (after?.[1]) return after[1];
+    const before = normalized.match(new RegExp(`(-?\\$?\\d+(?:\\.\\d{2})?)[^A-Za-z0-9$-]{0,30}\\b${escaped}\\b`, "i"));
+    if (before?.[1]) return before[1];
+  }
+  return undefined;
+}
+
+function firstNumberNearLabel(source: string, labels: string[]) {
+  const normalized = source.replace(/\s+/g, " ");
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = normalized.match(new RegExp(`\\b${escaped}\\b.{0,140}?(?:qty|quantity|in cart|×|x)\\D{0,20}(\\d+)`, "i"));
+    if (match?.[1]) return match[1];
+  }
+  return undefined;
+}
+
+async function text(page: Page, key: string) {
+  const testIdText = await page.getByTestId(key).innerText({ timeout: 700 }).catch(() => "");
+  if (testIdText.trim()) return testIdText.trim();
+
+  const inputValue = await page.getByTestId(key).inputValue({ timeout: 700 }).catch(() => "");
+  if (inputValue.trim()) return inputValue.trim();
+
+  const source = await bodyText(page);
+  if (moneyLabels[key]) {
+    const value = firstMoneyNearLabel(source, moneyLabels[key]);
+    if (value) return value;
+  }
+  if (checkoutTerms[key]?.labels) {
+    const value = firstNumberNearLabel(source, checkoutTerms[key].labels);
+    if (value) return value;
+  }
+
+  const fallback = await (await firstAvailable(semanticCandidates(page, key))).innerText().catch(() => "");
+  if (fallback.trim()) return fallback.trim();
+  throw new Error(`Could not read '${key}' from generated app by test id, label, text, or page snapshot.`);
 }
 
 async function waitForTextMatch(target: Locator, source: string, timeoutMs = 2500) {
@@ -39,19 +173,19 @@ async function runAction(page: Page, action: EvaluatorAction) {
     return;
   }
   if (action.kind === "waitForTestId") {
-    await page.getByTestId(action.testId).waitFor();
+    await firstAvailable(semanticCandidates(page, action.testId));
     return;
   }
   if (action.kind === "fill") {
-    await page.getByTestId(action.testId).fill(action.value);
+    await (await firstAvailable(semanticCandidates(page, action.testId))).fill(action.value);
     return;
   }
   if (action.kind === "click") {
-    await locator(page, action.target).click();
+    await (await locator(page, action.target)).click();
     return;
   }
   if (action.kind === "clickTwice") {
-    const button = page.getByTestId(action.testId);
+    const button = await firstAvailable(semanticCandidates(page, action.testId));
     await Promise.allSettled([button.click(), button.click()]);
     return;
   }
@@ -86,7 +220,7 @@ async function runAssertion(page: Page, assertion: EvaluatorAssertion) {
     return;
   }
   if (assertion.kind === "textMatches") {
-    const target = locator(page, assertion.target);
+    const target = await locator(page, assertion.target);
     await target.waitFor();
     if (assertion.pattern === ".*") return;
     await waitForTextMatch(target, assertion.pattern);
@@ -98,11 +232,11 @@ async function runAssertion(page: Page, assertion: EvaluatorAssertion) {
     return;
   }
   if (assertion.kind === "isDisabled") {
-    const target = locator(page, assertion.target);
+    const target = await locator(page, assertion.target);
     if (await target.isEnabled()) throw new Error("Expected target control to be disabled.");
     return;
   }
-  const box = await page.getByTestId(assertion.testId).boundingBox();
+  const box = await (await firstAvailable(semanticCandidates(page, assertion.testId))).boundingBox();
   if (!box || box.height < assertion.minPx) throw new Error(`Expected ${assertion.testId} touch target height to be at least ${assertion.minPx}px.`);
 }
 
