@@ -2,6 +2,12 @@ import { chromium, type Locator, type Page } from "playwright";
 import type { LiveRunTestResult } from "./live-run-store";
 import type { EvaluatorAction, EvaluatorAssertion, EvaluatorTarget, NaturalLanguageEvaluatorSpec } from "./evaluator-specs";
 
+export type PlaywrightVisualEvidence = {
+  desktopPngBase64: string;
+  mobilePngBase64: string;
+  textSnapshot: string;
+};
+
 function pattern(source: string) {
   return new RegExp(source, "i");
 }
@@ -271,6 +277,28 @@ export async function evaluateSpecsWithPlaywright(input: {
       }
     }
     return results;
+  } finally {
+    await browser.close();
+  }
+}
+
+export async function captureVisualEvidence(url: string): Promise<PlaywrightVisualEvidence> {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const desktop = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await desktop.goto(url, { waitUntil: "domcontentloaded", timeout: 12000 });
+    await desktop.waitForTimeout(600);
+    const textSnapshot = (await desktop.locator("body").innerText({ timeout: 2500 }).catch(() => "")).replace(/\s+/g, " ").trim().slice(0, 2500);
+    const desktopPngBase64 = (await desktop.screenshot({ fullPage: false, type: "png" })).toString("base64");
+    await desktop.close();
+
+    const mobile = await browser.newPage({ viewport: { width: 390, height: 780 }, isMobile: true });
+    await mobile.goto(url, { waitUntil: "domcontentloaded", timeout: 12000 });
+    await mobile.waitForTimeout(600);
+    const mobilePngBase64 = (await mobile.screenshot({ fullPage: false, type: "png" })).toString("base64");
+    await mobile.close();
+
+    return { desktopPngBase64, mobilePngBase64, textSnapshot };
   } finally {
     await browser.close();
   }

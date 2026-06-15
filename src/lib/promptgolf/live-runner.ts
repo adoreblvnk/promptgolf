@@ -1,19 +1,63 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { z } from "zod";
 import { collectRunProviderState, generateLiveTestDrafts } from "./adapters";
 import { CHECKOUT_REQUIRED_CONTRACT_MARKERS, checkoutEvaluatorSpecs } from "./evaluator-specs";
 import { deterministicCheckoutArtifact } from "./live-run-fixture";
-import { appendLiveRunEvent, createLiveRun, getLiveRun, sanitizeLog, updateLiveRun } from "./live-run-store";
-import { evaluateSpecsWithPlaywright } from "./playwright-evaluator";
+import { appendLiveRunEvent, createLiveRun, getLiveRun, sanitizeLog, updateLiveRun, type LiveRunCategoryScore, type LiveRunSkillDiagnosis, type LiveRunTestCategory, type LiveRunTestResult } from "./live-run-store";
+import { captureVisualEvidence, evaluateSpecsWithPlaywright } from "./playwright-evaluator";
 
 const AGNES_AI_BASE_URL = process.env.AGNES_AI_BASE_URL ?? "https://apihub.agnes-ai.com/v1";
 const AGNES_AI_MODEL = process.env.AGNES_AI_MODEL ?? "agnes-2.0-flash";
 const GENERATION_TIMEOUT_MS = Number(process.env.PROMPTGOLF_LIVE_GENERATION_TIMEOUT_MS ?? 240000);
 const GENERATION_MAX_TOKENS = Number(process.env.PROMPTGOLF_LIVE_GENERATION_MAX_TOKENS ?? 4200);
+const EVALUATION_TIMEOUT_MS = Number(process.env.PROMPTGOLF_LIVE_EVALUATION_TIMEOUT_MS ?? 45000);
+const EVALUATION_MAX_TOKENS = Number(process.env.PROMPTGOLF_LIVE_EVALUATION_MAX_TOKENS ?? 900);
 const DAYTONA_CREATE_TIMEOUT_SECONDS = Number(process.env.PROMPTGOLF_DAYTONA_CREATE_TIMEOUT_SECONDS ?? 30);
 const DAYTONA_STEP_TIMEOUT_MS = Number(process.env.PROMPTGOLF_DAYTONA_STEP_TIMEOUT_MS ?? 30000);
 const ALLOW_LOCAL_SANDBOX_FALLBACK = process.env.PROMPTGOLF_ALLOW_LOCAL_SANDBOX_FALLBACK === "1";
+
+const CATEGORY_LABELS: Record<LiveRunTestCategory, string> = {
+  functional: "Functional",
+  hidden: "Hidden",
+  style: "UI/UX",
+};
+
+const STYLE_TESTS: Array<Pick<LiveRunTestResult, "id" | "label" | "category">> = [
+  { id: "style-visual-hierarchy", label: "Checkout visual hierarchy and clarity", category: "style" },
+  { id: "style-mobile-usability", label: "Mobile UI/UX and touch ergonomics", category: "style" },
+];
+
+const SkillDiagnosisSchema = z.object({
+  verdict: z.enum(["prompting", "technical", "balanced"]),
+  promptingScore: z.number().int().min(0).max(10),
+  technicalScore: z.number().int().min(0).max(10),
+  summary: z.string().min(1).max(220),
+  promptingFeedback: z.string().min(1).max(180),
+  technicalFeedback: z.string().min(1).max(180),
+});
+
+const SKILL_DIAGNOSIS_RESPONSE_FORMAT = {
+  type: "json_schema",
+  json_schema: {
+    name: "promptgolf_skill_diagnosis",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["verdict", "promptingScore", "technicalScore", "summary", "promptingFeedback", "technicalFeedback"],
+      properties: {
+        verdict: { type: "string", enum: ["prompting", "technical", "balanced"], description: "Primary gap shown by the run." },
+        promptingScore: { type: "integer", minimum: 0, maximum: 10, description: "How strong the contestant prompt was as a software spec." },
+        technicalScore: { type: "integer", minimum: 0, maximum: 10, description: "How much relevant product/domain engineering knowledge the prompt encoded." },
+        summary: { type: "string", maxLength: 220, description: "One concise sentence explaining the score pattern." },
+        promptingFeedback: { type: "string", maxLength: 180, description: "One concise actionable prompting improvement." },
+        technicalFeedback: { type: "string", maxLength: 180, description: "One concise actionable product/domain knowledge improvement." },
+      },
+    },
+  },
+} satisfies Record<string, unknown>;
 
 function stubsEnabled() {
   return process.env.PROMPTGOLF_TEST_PROVIDER_STUBS === "1";
@@ -173,6 +217,179 @@ async function generateViaOpenAICompatible(input: { apiKey: string; baseUrl: str
   }
 }
 
+function extractJsonObject(text: string) {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
+  const candidate = (fenced ?? text).trim();
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("model response did not include a JSON object");
+  return JSON.parse(candidate.slice(start, end + 1)) as unknown;
+}
+
+async function generateAgnesJson(input: { system: string; content: unknown; maxTokens?: number; responseFormat?: Record<string, unknown> }) {
+  const apiKey = process.env.AGNES_AI_API_KEY?.trim();
+  if (!apiKey) throw new Error("AGNES_AI_API_KEY is not configured");
+
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, EVALUATION_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(joinUrl(AGNES_AI_BASE_URL, "/chat/completions"), {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: AGNES_AI_MODEL,
+        temperature: 0.2,
+        max_tokens: input.maxTokens ?? EVALUATION_MAX_TOKENS,
+        stream: false,
+        ...(input.responseFormat ? { response_format: input.responseFormat } : {}),
+        messages: [
+          { role: "system", content: input.system },
+          { role: "user", content: input.content },
+        ],
+      }),
+      signal: controller.signal,
+    });
+
+    const raw = await response.text();
+    let data: unknown;
+    try {
+      data = raw ? JSON.parse(raw) : undefined;
+    } catch {
+      data = undefined;
+    }
+
+    if (!response.ok) throw new Error(`Agnes AI HTTP ${response.status}: ${raw.slice(0, 220)}`);
+    const text = extractChatContent(data);
+    if (!text.trim()) throw new Error("Agnes AI returned no evaluator content");
+    return extractJsonObject(text);
+  } catch (error) {
+    if (timedOut) throw new Error(`Agnes AI evaluation exceeded ${Math.round(EVALUATION_TIMEOUT_MS / 1000)}s timeout`);
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function booleanFrom(value: unknown) {
+  return value === true || value === "true" || value === "pass" || value === "passed";
+}
+
+function styleResultFrom(data: unknown, id: string, fallbackLabel: string): LiveRunTestResult | undefined {
+  if (typeof data !== "object" || data === null || !("styleTests" in data) || !Array.isArray(data.styleTests)) return undefined;
+  const match = data.styleTests.find((item) => typeof item === "object" && item !== null && "id" in item && item.id === id);
+  if (typeof match !== "object" || match === null) return undefined;
+  const note = "note" in match && typeof match.note === "string" ? match.note : "Agnes AI screenshot judge returned a style verdict.";
+  return { id, label: "label" in match && typeof match.label === "string" ? match.label : fallbackLabel, category: "style", passed: booleanFrom("passed" in match ? match.passed : false), note: note.slice(0, 300) };
+}
+
+async function evaluateStyleWithAgnes(id: string, url: string): Promise<LiveRunTestResult[]> {
+  appendLiveRunEvent(id, "score", "info", "Capturing desktop and mobile Playwright screenshots for Agnes AI UI/UX evaluation.");
+  const evidence = await captureVisualEvidence(url);
+
+  if (stubsEnabled()) {
+    appendLiveRunEvent(id, "score", "success", "CI stub mode: using deterministic Agnes-style UI/UX verdicts for screenshot scoring.");
+    return STYLE_TESTS.map((test) => ({ ...test, passed: true, note: "Stubbed Agnes UI/UX judge: generated checkout has clear hierarchy and usable responsive controls." }));
+  }
+
+  try {
+    appendLiveRunEvent(id, "score", "info", "Asking Agnes AI to judge UI/UX from the captured screenshots.");
+    const data = await generateAgnesJson({
+      system:
+        "You are PromptGolf's Agnes AI screenshot evaluator. Judge only the rendered checkout UI from the screenshots. Reward a premium finished consumer checkout: clear hierarchy, tactile double-bezel/card structure, refined spacing, readable totals, strong CTA, visible states, non-generic styling, no gradient text, no sloppy Bootstrap-like layout. Return strict JSON with styleTests for exactly style-visual-hierarchy and style-mobile-usability. Each item needs id, label, passed boolean, and note. Do not use markdown.",
+      content: [
+        {
+          type: "text",
+          text: `Evaluate this generated checkout app from Playwright screenshots. Award two binary UI/UX tests. style-visual-hierarchy passes only if the desktop UI looks like a polished premium checkout with clear product hierarchy, tactile cards, readable order summary, refined spacing, and visible error/success states. style-mobile-usability passes only if the mobile UI stacks cleanly, keeps inputs/buttons easy to tap, avoids horizontal overflow, and preserves checkout clarity. Visible page text snapshot: ${evidence.textSnapshot}`,
+        },
+        { type: "image_url", image_url: { url: `data:image/png;base64,${evidence.desktopPngBase64}` } },
+        { type: "image_url", image_url: { url: `data:image/png;base64,${evidence.mobilePngBase64}` } },
+      ],
+    });
+
+    const tests = STYLE_TESTS.map((test) => styleResultFrom(data, test.id, test.label) ?? { ...test, passed: false, note: "Agnes AI did not return a valid verdict for this style check." });
+    tests.forEach((test) => appendLiveRunEvent(id, "score", test.passed ? "success" : "error", `${test.passed ? "PASS" : "FAIL"}: ${test.label} — ${sanitizeLog(test.note)}`));
+    return tests;
+  } catch (error) {
+    const message = sanitizeLog(error instanceof Error ? error.message : String(error));
+    appendLiveRunEvent(id, "score", "warning", `Agnes AI screenshot evaluation degraded: ${message}`);
+    return STYLE_TESTS.map((test) => ({ ...test, passed: false, note: `Agnes AI screenshot evaluation unavailable: ${message}` }));
+  }
+}
+
+function categoryScores(tests: LiveRunTestResult[]): LiveRunCategoryScore[] {
+  return (["functional", "hidden", "style"] as const).map((category) => {
+    const categoryTests = tests.filter((test) => test.category === category);
+    const passed = categoryTests.filter((test) => test.passed).length;
+    const total = categoryTests.length;
+    return { category, label: CATEGORY_LABELS[category], passed, total, score: total ? Math.round((passed / total) * 100) : 0 };
+  });
+}
+
+function scoreTests(tests: LiveRunTestResult[]) {
+  const passed = tests.filter((test) => test.passed).length;
+  const total = tests.length;
+  return { passed, total, finalScore: total ? Math.round((passed / total) * 100) : 0, categories: categoryScores(tests) };
+}
+
+function diagnosisFrom(data: unknown): LiveRunSkillDiagnosis | undefined {
+  const parsed = SkillDiagnosisSchema.safeParse(data);
+  if (!parsed.success) return undefined;
+  return parsed.data;
+}
+
+async function diagnosePromptWithAgnes(id: string, prompt: string, tests: LiveRunTestResult[], score: ReturnType<typeof scoreTests>): Promise<LiveRunSkillDiagnosis> {
+  if (stubsEnabled()) {
+    return {
+      verdict: score.categories.find((category) => category.category === "hidden")?.passed === 3 ? "balanced" : "technical",
+      promptingScore: 7,
+      technicalScore: score.categories.find((category) => category.category === "hidden")?.passed === 3 ? 8 : 4,
+      summary: "Prompt analysis: the score pattern separates spec clarity from ecommerce domain coverage.",
+      promptingFeedback: "State required controls, states, and acceptance criteria directly.",
+      technicalFeedback: "Include cents math, promo normalization, inventory limits, and checkout state.",
+    };
+  }
+
+  try {
+    appendLiveRunEvent(id, "score", "info", "Running Agnes-backed prompt analysis against prompting skill and technical/domain gaps.");
+    const compactResults = tests.map((test) => ({ id: test.id, category: test.category, passed: test.passed, note: test.note.slice(0, 180) }));
+    const data = await generateAgnesJson({
+      system:
+        "You are PromptGolf's concise skill diagnostician. Score the submitted prompt, not the generated app alone. Decide whether failures mainly show prompting skill gaps, technical/domain knowledge gaps, or a balanced mix. Do not reveal hidden test answers verbatim. Return only the requested structured object.",
+      content: `Prompt submitted by contestant:\n${prompt.slice(0, 5000)}\n\nOverall and category score:\n${JSON.stringify(score)}\n\nFailed and passed evaluator results:\n${JSON.stringify(compactResults)}\n\nScoring rubric: promptingScore measures clarity, specificity, and testable acceptance criteria. technicalScore measures encoded product/domain engineering knowledge. Both are integers from 0 to 10. Keep feedback concise enough for a scorecard panel.`,
+      maxTokens: 700,
+      responseFormat: SKILL_DIAGNOSIS_RESPONSE_FORMAT,
+    });
+    return diagnosisFrom(data) ?? {
+      verdict: "degraded",
+      promptingScore: 0,
+      technicalScore: 0,
+      summary: "Prompt analysis returned an incomplete result.",
+      promptingFeedback: "The prompt needs clearer acceptance criteria.",
+      technicalFeedback: "The prompt needs more ecommerce edge-case coverage.",
+    };
+  } catch (error) {
+    const message = sanitizeLog(error instanceof Error ? error.message : String(error));
+    appendLiveRunEvent(id, "score", "warning", `Agnes-backed prompt analysis degraded: ${message}`);
+    return {
+      verdict: "degraded",
+      promptingScore: 0,
+      technicalScore: 0,
+      summary: `Prompt analysis unavailable: ${message}`,
+      promptingFeedback: "Prompt analysis could not be completed by the live evaluator.",
+      technicalFeedback: "Review failed functional and hidden checks to infer missing ecommerce/product knowledge.",
+    };
+  }
+}
+
 async function generateArtifact(id: string, prompt: string) {
   if (stubsEnabled()) {
     appendLiveRunEvent(id, "generate", "success", "CI stub mode enabled: using deterministic generated checkout artifact with no network or secrets.");
@@ -303,12 +520,12 @@ PY`,
 }
 
 async function generateTokenRouterEvaluatorDrafts(id: string) {
-  appendLiveRunEvent(id, "test", "info", "Routing stable hidden evaluator specs through TokenRouter before deterministic Playwright scoring.");
+  appendLiveRunEvent(id, "test", "info", "Routing functional and hidden evaluator specs through TokenRouter before deterministic Playwright scoring.");
   const draft = await generateLiveTestDrafts(checkoutEvaluatorSpecs.map((spec) => ({ title: `${spec.label}: ${spec.intent}` })));
   if (draft.provider.name !== "TokenRouter" || draft.provider.status !== "connected" || draft.tests.length === 0) {
     throw new Error(`TokenRouter evaluator draft generation was unavailable; provider=${draft.provider.name}, status=${draft.provider.status}. Live demo mode requires TokenRouter for cache-friendly test drafts.`);
   }
-  appendLiveRunEvent(id, "test", "success", `TokenRouter generated ${draft.tests.length} cache-friendly evaluator draft${draft.tests.length === 1 ? "" : "s"}; deterministic Playwright will execute the validated spec materialization.`);
+  appendLiveRunEvent(id, "test", "success", `TokenRouter generated ${draft.tests.length} cache-friendly Playwright evaluator draft${draft.tests.length === 1 ? "" : "s"}; deterministic Playwright will execute the validated spec materialization.`);
   draft.tests.slice(0, 3).forEach((test) => appendLiveRunEvent(id, "test", "info", `TokenRouter draft: ${sanitizeLog(test.title)}`));
 }
 
@@ -343,12 +560,13 @@ async function executeLiveRun(id: string, origin: string) {
 
     const testUrl = daytonaPreview ?? localPreview;
     await generateTokenRouterEvaluatorDrafts(id);
-    const tests = await runPlaywright(id, testUrl);
-    const passed = tests.filter((test) => test.passed).length;
-    const total = tests.length;
-    const finalScore = total ? Math.round((passed / total) * 100) : 0;
-    updateLiveRun(id, { status: "completed", stage: "completed", tests, score: { passed, total, finalScore } });
-    appendLiveRunEvent(id, "score", "success", `Live Playwright evaluation completed: ${passed}/${total} checks passed (${finalScore}).`);
+    const browserTests = await runPlaywright(id, testUrl);
+    const styleTests = await evaluateStyleWithAgnes(id, testUrl);
+    const tests = [...browserTests, ...styleTests];
+    const score = scoreTests(tests);
+    const diagnosis = await diagnosePromptWithAgnes(id, run.prompt, tests, score);
+    updateLiveRun(id, { status: "completed", stage: "completed", tests, score, diagnosis });
+    appendLiveRunEvent(id, "score", "success", `Live evaluation completed: ${score.passed}/${score.total} checks passed (${score.finalScore}). Functional ${score.categories[0].passed}/${score.categories[0].total}; hidden ${score.categories[1].passed}/${score.categories[1].total}; UI/UX ${score.categories[2].passed}/${score.categories[2].total}.`);
     appendLiveRunEvent(id, "completed", "success", "Run completed from generated artifact and real browser test results.");
   } catch (error) {
     const message = sanitizeLog(error instanceof Error ? error.message : String(error));

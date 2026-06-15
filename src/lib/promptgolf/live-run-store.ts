@@ -11,12 +11,31 @@ export type LiveRunEvent = {
   message: string;
 };
 
+export type LiveRunTestCategory = "functional" | "hidden" | "style";
+
 export type LiveRunTestResult = {
   id: string;
   label: string;
-  category: "public" | "hidden" | "ux";
+  category: LiveRunTestCategory;
   passed: boolean;
   note: string;
+};
+
+export type LiveRunCategoryScore = {
+  category: LiveRunTestCategory;
+  label: string;
+  passed: number;
+  total: number;
+  score: number;
+};
+
+export type LiveRunSkillDiagnosis = {
+  verdict: "prompting" | "technical" | "balanced" | "degraded";
+  promptingScore: number;
+  technicalScore: number;
+  summary: string;
+  promptingFeedback: string;
+  technicalFeedback: string;
 };
 
 export type LiveRun = {
@@ -37,7 +56,9 @@ export type LiveRun = {
     passed: number;
     total: number;
     finalScore: number;
+    categories: LiveRunCategoryScore[];
   };
+  diagnosis?: LiveRunSkillDiagnosis;
   providerState: ProviderProbe[];
   events: LiveRunEvent[];
   error?: string;

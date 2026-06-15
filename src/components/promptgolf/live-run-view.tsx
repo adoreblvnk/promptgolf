@@ -9,6 +9,10 @@ type SafeRun = Omit<LiveRun, "prompt" | "artifactHtml">;
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const DEFAULT_PREVIEW_HEIGHT = 520;
+const MIN_PREVIEW_HEIGHT = 420;
+const MAX_PREVIEW_HEIGHT = 620;
+
 const HIGHLIGHT_CSS = `
 .pg-scan{outline:2px solid #d40000!important;outline-offset:4px;border-radius:8px;transition:outline-color .16s,background .16s;box-shadow:0 0 0 6px rgba(212,0,0,.12)!important}
 .pg-pass{outline:2px solid #238b45!important;outline-offset:4px;border-radius:8px;background:rgba(35,139,69,.10)!important;box-shadow:0 0 0 6px rgba(35,139,69,.10)!important}
@@ -25,6 +29,8 @@ const TARGETS: Record<string, string> = {
   "out-of-stock": "itemMug",
   "double-submit": "checkout",
   "mobile-a11y": "checkout",
+  "style-visual-hierarchy": "checkout",
+  "style-mobile-usability": "checkout",
 };
 
 function statusTone(level: LiveRunEvent["level"]) {
@@ -39,6 +45,18 @@ function statusBadge(level: LiveRunEvent["level"]) {
   if (level === "warning") return "border-warn/35 bg-warn-soft text-warn";
   if (level === "error") return "border-accent/30 bg-accent-soft text-accent-strong";
   return "border-rule bg-paper text-ink-muted";
+}
+
+function categoryLabel(category: LiveRunTestResult["category"]) {
+  if (category === "functional") return "functional";
+  if (category === "hidden") return "hidden";
+  return "UI/UX";
+}
+
+function categoryTone(category: LiveRunTestResult["category"]) {
+  if (category === "functional") return "border-pass/25 bg-pass-soft text-pass";
+  if (category === "hidden") return "border-warn/35 bg-warn-soft text-warn";
+  return "border-accent/25 bg-accent-soft text-accent-strong";
 }
 
 function testIdSelector(testId: string) {
@@ -94,6 +112,17 @@ function clickElement(element: Element | null | undefined) {
   if (element instanceof HTMLElement) element.click();
 }
 
+function measuredFrameHeight(frame: HTMLIFrameElement | null) {
+  try {
+    const doc = frame?.contentDocument;
+    if (!doc?.body) return DEFAULT_PREVIEW_HEIGHT;
+    const height = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
+    return Math.min(MAX_PREVIEW_HEIGHT, Math.max(MIN_PREVIEW_HEIGHT, Math.ceil(height + 8)));
+  } catch {
+    return DEFAULT_PREVIEW_HEIGHT;
+  }
+}
+
 async function replayAction(doc: Document, id: string) {
   if (id === "promo-normalize") {
     setInput(doc, "  save10 ");
@@ -141,6 +170,7 @@ export function LiveRunView({ id }: { id: string }) {
   const [connected, setConnected] = useState(false);
   const [replayIndex, setReplayIndex] = useState(-1);
   const [replayedSignature, setReplayedSignature] = useState("");
+  const [previewHeight, setPreviewHeight] = useState(DEFAULT_PREVIEW_HEIGHT);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const latestTestsRef = useRef<LiveRunTestResult[]>([]);
 
@@ -177,6 +207,7 @@ export function LiveRunView({ id }: { id: string }) {
   }, [id]);
 
   const testsSignature = useMemo(() => run?.tests.map((test) => `${test.id}:${test.passed}`).join("|") ?? "", [run?.tests]);
+  const previewSrc = run?.previewUrl ? `/api/live-runs/${id}/preview` : undefined;
 
   useEffect(() => {
     latestTestsRef.current = run?.tests ?? [];
@@ -205,6 +236,7 @@ export function LiveRunView({ id }: { id: string }) {
       }
       if (!doc || cancelled) return;
       injectStyles(doc);
+      setPreviewHeight(measuredFrameHeight(iframeRef.current));
 
       for (let index = 0; index < checks.length; index += 1) {
         if (cancelled) return;
@@ -232,11 +264,26 @@ export function LiveRunView({ id }: { id: string }) {
     };
   }, [run?.previewUrl, replayedSignature, testsSignature]);
 
+  useEffect(() => {
+    if (!previewSrc) return;
+    let cancelled = false;
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts += 1;
+      if (!cancelled) setPreviewHeight(measuredFrameHeight(iframeRef.current));
+      if (attempts > 12) clearInterval(interval);
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [previewSrc]);
+
   const visibleEvents = useMemo(() => events.slice(-80), [events]);
   const testEvents = useMemo(() => events.filter((event) => event.stage === "test").slice(-14), [events]);
   const complete = run?.status === "completed" || run?.status === "failed";
-  const previewSrc = run?.previewUrl ? `/api/live-runs/${id}/preview` : undefined;
   const scoreText = run?.score ? `${run.score.passed}/${run.score.total} · ${run.score.finalScore}` : "running";
+  const categoryScores = run?.score?.categories ?? [];
 
   if (!run) {
     return <div className="rounded-lg border border-rule bg-card p-6 text-ink-soft">Connecting to live run…</div>;
@@ -251,9 +298,12 @@ export function LiveRunView({ id }: { id: string }) {
             <span className="rounded border border-rule bg-paper px-2.5 py-1 font-mono text-xs text-ink-soft">stage: {run.stage}</span>
             <span className={cn("rounded border px-2.5 py-1 font-mono text-xs", connected ? "border-pass/30 bg-pass-soft text-pass" : "border-warn/35 bg-warn-soft text-warn")}>{connected ? "SSE connected" : "polling fallback"}</span>
           </div>
-          <div className="font-mono text-xs text-ink-muted" data-testid="live-score">score {scoreText}</div>
+          <div className="text-right" data-testid="live-score">
+            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">score</div>
+            <div className="font-mono text-2xl font-semibold tabular-nums tracking-[-0.04em] text-ink">{scoreText}</div>
+          </div>
         </div>
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.45fr)_420px]">
+        <div className="grid items-start gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="border-b border-rule p-4 lg:border-b-0 lg:border-r">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
@@ -273,35 +323,47 @@ export function LiveRunView({ id }: { id: string }) {
                 <span className="rounded bg-pass-soft px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider text-pass">{run.previewLabel ?? "pending"}</span>
               </div>
               {previewSrc ? (
-                <iframe ref={iframeRef} title="Generated checkout preview" src={previewSrc} sandbox="allow-scripts allow-same-origin" className="h-[640px] w-full bg-white" />
+                <iframe ref={iframeRef} title="Generated checkout preview" src={previewSrc} sandbox="allow-scripts allow-same-origin" className="w-full bg-white" style={{ height: previewHeight }} onLoad={() => setPreviewHeight(measuredFrameHeight(iframeRef.current))} />
               ) : (
-                <div className="flex h-[640px] items-center justify-center border-t border-dashed border-rule bg-paper text-sm text-ink-muted">Preview appears after Agnes AI returns HTML and the sandbox route is selected.</div>
+                <div className="flex items-center justify-center border-t border-dashed border-rule bg-paper text-sm text-ink-muted" style={{ height: DEFAULT_PREVIEW_HEIGHT }}>Preview appears after Agnes AI returns HTML and the sandbox route is selected.</div>
               )}
             </div>
           </div>
 
-          <aside className="flex flex-col gap-4 p-4">
+          <aside className="flex flex-col gap-3 p-3 sm:p-4 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:overscroll-contain">
+            <div className="rounded-lg border border-rule bg-paper p-3">
+              <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-muted">Results</div>
+              <div className="mt-1.5 font-mono text-4xl font-semibold tabular-nums tracking-[-0.04em] text-ink">{scoreText}</div>
+              <p className="mt-1.5 text-xs leading-5 text-ink-soft">Functional checks, hidden ecommerce edge cases, and Agnes AI screenshot UI/UX scoring.</p>
+              {categoryScores.length ? (
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {categoryScores.map((category) => <CategoryScore key={category.category} label={category.label} value={`${category.passed}/${category.total}`} score={category.score} />)}
+                </div>
+              ) : (
+                <div className="mt-4 rounded-md border border-dashed border-rule p-3 font-mono text-xs text-ink-muted">Category scores appear after Playwright and Agnes finish.</div>
+              )}
+            </div>
+
             <div>
               <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-muted">Live pipeline</div>
-              <dl className="mt-3 grid gap-2">
+              <dl className="mt-2 grid gap-2">
                 <Metric label="Provider" value={run.providerMode} />
                 <Metric label="Sandbox" value={run.sandboxMode} />
-                <Metric label="Result" value={scoreText} />
               </dl>
             </div>
 
-            <div className="min-h-0 flex-1 rounded-lg border border-rule bg-paper p-4">
+            <div className="flex h-[360px] min-h-0 flex-col overflow-hidden rounded-lg border border-rule bg-paper p-3 lg:h-[34dvh] lg:min-h-[300px]">
               <div className="flex items-center justify-between border-b border-rule pb-2.5">
-                <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-muted">Playwright · hidden tests</div>
+                <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-muted">Evaluator checks</div>
                 {!complete && <LoaderCircle className="size-3.5 animate-spin text-accent" />}
               </div>
               {run.tests.length ? (
-                <ol className="mt-3 space-y-2 font-mono text-xs" data-testid="live-test-results">
+                <ol className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 font-mono text-xs" data-testid="live-test-results">
                   {run.tests.map((test, index) => {
                     const revealed = replayIndex >= run.tests.length || index < replayIndex;
                     const active = index === replayIndex;
                     return (
-                      <li key={test.id} className={cn("rounded-md border p-2.5 transition-[opacity,background-color,border-color]", active ? "border-accent bg-accent-soft opacity-100" : revealed ? "border-rule bg-card opacity-100" : "border-rule bg-card opacity-55")}>
+                      <li key={test.id} className={cn("rounded-md border p-2 transition-[opacity,background-color,border-color]", active ? "border-accent bg-accent-soft opacity-100" : revealed ? "border-rule bg-card opacity-100" : "border-rule bg-card opacity-55")}>
                         <div className="flex items-start gap-2">
                           {revealed ? (
                             test.passed ? <Check className="mt-0.5 size-3.5 shrink-0 text-pass" /> : <X className="mt-0.5 size-3.5 shrink-0 text-accent-strong" />
@@ -312,8 +374,9 @@ export function LiveRunView({ id }: { id: string }) {
                           )}
                           <span className="min-w-0 flex-1">
                             <span className={revealed || active ? "text-ink" : "text-ink-muted"}>{test.label}</span>
-                            {revealed && !test.passed && <span className="mt-1 block leading-5 text-accent-strong">{test.note}</span>}
+                            {revealed && !test.passed && <span className="mt-1 block max-h-20 overflow-y-auto pr-1 leading-5 text-accent-strong">{test.note}</span>}
                           </span>
+                          <span className={cn("shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider", categoryTone(test.category))}>{categoryLabel(test.category)}</span>
                           {revealed && <span className={cn("shrink-0 text-[10px] font-medium uppercase tracking-wider", test.passed ? "text-pass" : "text-accent-strong")}>{test.passed ? "pass" : "fail"}</span>}
                         </div>
                       </li>
@@ -321,7 +384,7 @@ export function LiveRunView({ id }: { id: string }) {
                   })}
                 </ol>
               ) : (
-                <div className="mt-3 space-y-2" data-testid="live-test-results">
+                <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1" data-testid="live-test-results">
                   {testEvents.length ? testEvents.map((event) => (
                     <div key={event.id} className={cn("rounded-md border p-2.5 font-mono text-xs", statusBadge(event.level))}>
                       <div className="text-ink-muted">#{event.id} · {event.stage}</div>
@@ -334,6 +397,26 @@ export function LiveRunView({ id }: { id: string }) {
           </aside>
         </div>
       </section>
+
+      {run.diagnosis ? (
+        <section className="rounded-lg border border-rule bg-card p-5 shadow-[0_1px_2px_oklch(0.23_0.022_268/0.05)]">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-rule pb-3">
+            <div>
+              <h2 className="text-lg font-semibold tracking-[-0.02em] text-ink">Prompt analysis</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">Structured analysis of prompt quality versus product-engineering knowledge.</p>
+            </div>
+            <span className="rounded border border-rule bg-paper px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-ink-soft">{run.diagnosis.verdict}</span>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-[220px_220px_minmax(0,1fr)]">
+            <SkillScoreCard label="Prompting" score={run.diagnosis.promptingScore} feedback={run.diagnosis.promptingFeedback} tone="prompt" />
+            <SkillScoreCard label="Technical" score={run.diagnosis.technicalScore} feedback={run.diagnosis.technicalFeedback} tone="technical" />
+            <div className="rounded-lg border border-rule bg-paper p-4">
+              <div className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">Analysis</div>
+              <p className="mt-2 text-sm leading-6 text-ink">{run.diagnosis.summary}</p>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-lg border border-rule bg-card p-5 shadow-[0_1px_2px_oklch(0.23_0.022_268/0.05)]">
         <div className="flex items-center justify-between gap-3 border-b border-rule pb-3">
@@ -359,6 +442,32 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border border-rule bg-card p-3">
       <dt className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">{label}</dt>
       <dd className="mt-1 break-words font-mono text-xs font-medium text-ink">{value}</dd>
+    </div>
+  );
+}
+
+function CategoryScore({ label, value, score }: { label: string; value: string; score: number }) {
+  return (
+    <div className="rounded-md border border-rule bg-card p-3">
+      <div className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">{label}</div>
+      <div className="mt-1 font-mono text-2xl font-semibold tabular-nums text-ink">{value}</div>
+      <div className="mt-0.5 font-mono text-xs text-ink-soft">{score}</div>
+    </div>
+  );
+}
+
+function SkillScoreCard({ label, score, feedback, tone }: { label: string; score: number; feedback: string; tone: "prompt" | "technical" }) {
+  const safeScore = Math.max(0, Math.min(10, Math.round(score)));
+  return (
+    <div className="rounded-lg border border-rule bg-paper p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">{label}</div>
+        <div className="font-mono text-3xl font-semibold tabular-nums tracking-[-0.04em] text-ink">{safeScore}<span className="text-base text-ink-muted">/10</span></div>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink/[0.08]" aria-hidden="true">
+        <div className={cn("h-full rounded-full", tone === "prompt" ? "bg-pass" : "bg-warn")} style={{ width: `${safeScore * 10}%` }} />
+      </div>
+      <p className="mt-3 text-sm leading-5 text-ink-soft">{feedback}</p>
     </div>
   );
 }

@@ -20,6 +20,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     previewLabel: run.previewLabel,
     tests: run.tests,
     score: run.score,
+    diagnosis: run.diagnosis,
     providerState: run.providerState,
     events: run.events,
     error: run.error,
