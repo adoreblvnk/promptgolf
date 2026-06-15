@@ -1,15 +1,16 @@
 # PromptGolf Project Context
 
-Last updated: 2026-06-13, after provider keys/base URLs and tool-calling model policy were added, and the functional local PromptGolf loop was verified.
+Last updated: 2026-06-15, after the event context was updated and the live PromptGolf loop was verified.
 
-This document is the source of truth for building PromptGolf during the Agent Forge AI Hackathon at SMU on 2026-06-13.
+This document is the source of truth for building PromptGolf. Current event link: Agnes AI Hackathon @ SMU, https://luma.com/s9s8bjla.
 
 ## Current implementation status
 
-The current hackathon slice is a real local product flow with provider-backed boundaries. Sponsor/provider integrations use live adapters where the required keys are present and report explicit unavailable/degraded state when a service cannot be reached.
+The current product slice is a real local flow with provider-backed boundaries. Provider integrations use live adapters where the required keys are present and report explicit unavailable/degraded state when a service cannot be reached.
 
-- The challenge page submits prompts through a server action backed by `POST /api/runs`.
-- `POST /api/runs` validates prompt input, deterministically classifies it as naive, structured, or expert, and resolves the matching seeded run.
+- The challenge page submits prompts through a server action that starts a live run and redirects to `/live-runs/[id]`.
+- The live run path uses Kimi/Moonshot generation, Daytona preview infrastructure when available, TokenRouter evaluator posture where configured, and Playwright scoring against the generated artifact.
+- `POST /api/runs` remains available for deterministic naive/structured/expert seeded reference runs.
 - Run pages render scorecards, public/hidden test results, generated-checkout preview, provider posture, and a sandbox/run timeline whose provider state is backed by Daytona/TokenRouter/Moonshot adapters.
 - The leaderboard ranks seeded runs by computed score.
 - `DAYTONA_API_KEY`, `TOKENROUTER_API_KEY`, and `MOONSHOT_API_KEY` are present in `.env`; do not print them. Use real Daytona/TokenRouter/Moonshot adapter paths when provider work is requested, with unavailable/degraded states rather than fake provider success.
@@ -40,17 +41,17 @@ Use this as the live-demo hook, then immediately clarify:
 
 PromptGolf does not judge whether your prompt sounds clever. It judges whether your prompt creates a working product that survives hidden tests.
 
-## 5. Event constraints
+## 5. Demo constraints
 
-Official event facts, sponsor descriptions, agenda, location, and judging criteria live in `resources/agentforgesg.md`; do not duplicate them here.
+Keep event-specific logistics out of the product copy. The README links to the current Luma page.
 
 Project-relevant constraints to preserve:
 
 - The product must read as a production AI system, not a simple chatbot.
-- It should be ready for a short live demo and judged as a polished working product.
-- Sponsored product usage matters; prioritize Daytona and TokenRouter because they fit the core loop.
+- It should be ready for a short live demo and read as a polished working product.
+- Provider usage should fit the core loop; prioritize Daytona and TokenRouter where they materially improve the run/evaluation path.
 
-## 6. Strategic framing for judges
+## 6. Strategic framing
 
 Do not pitch PromptGolf as generic prompt education. Pitch it as a production-grade evaluation loop for agentic software development.
 
@@ -59,7 +60,7 @@ Say:
 - PromptGolf benchmarks AI-spec writing, not prompt aesthetics.
 - The product trains developers to encode requirements, constraints, edge cases, and domain assumptions into prompts that AI coding agents can execute.
 - Hidden tests reveal whether the player actually understands the engineering domain.
-- The platform is useful for hackathons, bootcamps, coding teams adopting AI agents, and companies training engineers to use AI coding tools safely.
+- The platform is useful for live AI build events, bootcamps, coding teams adopting AI agents, and companies training engineers to use AI coding tools safely.
 
 Avoid saying:
 
@@ -101,7 +102,7 @@ PromptGolf lets a user answer three questions:
 
 Wants to get better at steering coding agents. Already uses tools like Codex, OpenCode, Cursor, Claude Code, or similar.
 
-### Hackathon participant
+### Live-event builder
 
 Wants to learn how to write prompts that generate complete apps fast.
 
@@ -120,14 +121,14 @@ Wants assignments where students learn requirements thinking, hidden edge cases,
 - Hidden tests should test technical judgment, not trivia.
 - The best prompt is a compact software spec with constraints, edge cases, validation, and acceptance criteria.
 - Public requirements should be clear enough to start; hidden tests should reveal missing domain assumptions.
-- The UI must look polished and complete. This is a judged hackathon product, not a bare MVP.
+- The UI must look polished and complete. This is a product demo, not a bare MVP.
 - Demo stability matters more than a fully generalized backend.
 
-## 12. Scope for the hackathon build
+## 12. Scope for the current build
 
 Build a polished vertical product slice, not a rough MVP.
 
-The product should feel complete enough to be judged:
+The product should feel complete enough for a live audience:
 
 - landing page
 - challenge catalog
@@ -139,7 +140,7 @@ The product should feel complete enough to be judged:
 - leaderboard
 - at least two challenge examples
 - one strong end-to-end demo showing naive vs structured/expert prompt performance
-- sponsor integration surfaces for Daytona and TokenRouter
+- provider integration surfaces for Daytona and TokenRouter
 
 The backend can use product seed runs for demo scorecards, but provider execution/status must come from live adapters or explicit unavailable/degraded states.
 
@@ -155,7 +156,7 @@ This proves the thesis quickly.
 
 ## 14. Best first challenge: Mini Checkout + Promo Code Engine
 
-Use this as the main hackathon challenge because it is easier than the gesture-controlled presentation app but still rich in hidden industry quirks.
+Use this as the main demo challenge because it is easier than the gesture-controlled presentation app but still rich in hidden industry quirks.
 
 ### Public brief
 
@@ -364,7 +365,7 @@ Pipeline:
 6. Submissions run against the hidden tests.
 7. Scorecard displays test categories and pass/fail counts, not the hidden test source.
 
-For the hackathon demo, it is acceptable to keep product seed Playwright checks for stable scorecards. Any provider-generated tests or feedback should be labeled as live, unavailable, or degraded based on adapter results.
+For the live demo, it is acceptable to keep product seed Playwright checks for stable scorecards. Any provider-generated tests or feedback should be labeled as live, unavailable, or degraded based on adapter results.
 
 Model/provider policy:
 
@@ -373,12 +374,12 @@ Model/provider policy:
 - Strict Codex model IDs: `gpt-5.5`, `gpt-5.3-codex`, `gpt-5.2-codex`, `gpt-5.2-codex-max`, `gpt-5.2-codex-mini`, `gpt-5.1`, `gpt-5.2`.
 - Default Codex model: `gpt-5.5` unless a Codex-specific model is clearly better for the flow.
 - Codex does not support AI SDK tool calls. Do not design Codex flows that require `generateText`/`streamText` tools. Use Codex for builder-agent generation via CLI/process boundaries, deterministic app code, Playwright, and server-side logic outside the model call instead.
-- For AI SDK tool-calling flows, use Moonshot/Kimi or OpenAI. Prefer Moonshot/Kimi when it fits because `MOONSHOT_API_KEY` is present and it strengthens the sponsor story; use OpenAI as the reliable fallback, especially if Moonshot behavior/API fit is weaker for a specific tool-call path. Decide per flow rather than hardcoding one global tool-calling provider.
+- For AI SDK tool-calling flows, use Moonshot/Kimi or OpenAI. Prefer Moonshot/Kimi when it fits because `MOONSHOT_API_KEY` is present; use OpenAI as the reliable fallback, especially if Moonshot behavior/API fit is weaker for a specific tool-call path. Decide per flow rather than hardcoding one global tool-calling provider.
 - OpenAI provider exists but credits are limited. Use it sparingly for fallback paths or flows that genuinely need tool-call support.
 - Do not use the Google AI SDK provider.
 - `DAYTONA_API_KEY`, `TOKENROUTER_API_KEY`, and `MOONSHOT_API_KEY` are present in `.env`; never print or commit their values. Daytona base URL: `https://app.daytona.io/api`. TokenRouter base URL: `https://api.tokenrouter.com/v1`. Keep live integrations behind adapters and surface unavailable/degraded state honestly on failure.
 
-## 21. Sponsor strategy
+## 21. Provider strategy
 
 ### Use: Daytona
 
@@ -390,18 +391,18 @@ TokenRouter is the model gateway now that its key is available: route Codex/Open
 
 ### Optional: Kimi AI
 
-Kimi/Moonshot can be used as an additional coding/test-generation model and as a primary sponsored tool-calling provider because `MOONSHOT_API_KEY` is present; keep it optional if setup time threatens demo stability.
+Kimi/Moonshot can be used as an additional coding/test-generation model and as a primary tool-calling provider because `MOONSHOT_API_KEY` is present; keep it optional if setup time threatens demo stability.
 
 ## 22. Technical architecture
 
-Recommended architecture for hackathon:
+Recommended architecture:
 
 - Next.js App Router frontend/backend.
 - shadcn/ui components for polished UI.
 - Tailwind CSS v4 for styling.
 - AI SDK v6 for model calls.
 - Codex CLI community provider as the default model provider.
-- Moonshot/Kimi or OpenAI for AI SDK tool-calling flows; prefer Moonshot/Kimi for sponsor-visible paths, use OpenAI as the reliable low-credit fallback or when it is the better fit for a specific tool-call path.
+- Moonshot/Kimi or OpenAI for AI SDK tool-calling flows; prefer Moonshot/Kimi for demo-visible paths, use OpenAI as the reliable low-credit fallback or when it is the better fit for a specific tool-call path.
 - TokenRouter as model gateway using `TOKENROUTER_API_KEY` and `https://api.tokenrouter.com/v1`, with explicit degraded/unavailable states if routing fails.
 - Daytona SDK/API for sandbox lifecycle and command execution using `DAYTONA_API_KEY` and `https://app.daytona.io/api`, with a credentialed status probe when sandbox creation is disabled.
 - Playwright for deterministic app evaluation.
@@ -418,7 +419,7 @@ Package snapshot from current `package.json` after scaffolding:
 - AI SDK package `ai`: ^6.0.203.
 - Codex CLI provider `ai-sdk-provider-codex-cli`: ^1.2.2.
 - `@ai-sdk/openai`: ^3.0.71, fallback/tool-call paths only.
-- `@ai-sdk/moonshotai`: ^2.0.25, sponsored model and tool-calling paths.
+- `@ai-sdk/moonshotai`: ^2.0.25, model and tool-calling paths.
 - Zod: ^4.4.3.
 - lucide-react: ^1.18.0.
 - motion: ^12.40.0.
@@ -474,13 +475,13 @@ Core entities to support:
 - **Test result**: public or hidden, category, pass/fail, failure message, optional evidence screenshot.
 - **Scoring weights**: public tests, hidden tests, UX/style score, prompt-count penalty, optional manual-edit penalty.
 
-Keep the implementation flexible: seeded demo data is acceptable first; persistent storage can come after the judged flow works.
+Keep the implementation flexible: seeded demo data is acceptable first; persistent storage can come after the live flow works.
 
 ## 27. Suggested UI pages and components
 
 ### Landing page
 
-Purpose: make judges understand the product in 10 seconds.
+Purpose: make the audience understand the product in 10 seconds.
 
 Required sections:
 
@@ -488,7 +489,7 @@ Required sections:
 - One-line positioning.
 - Three-step flow: Prompt → Build in Sandbox → Hidden Tests Score.
 - Demo challenge cards.
-- Sponsor integration badges for Daytona and TokenRouter.
+- Provider integration badges for Daytona and TokenRouter.
 - CTA: “Try the Checkout Challenge.”
 
 ### Challenge page
@@ -680,7 +681,7 @@ Minimum hidden tests for checkout:
 - loading state during checkout
 - mobile viewport still usable
 
-For hackathon UI, show grouped results rather than exposing every hidden test detail.
+For demo UI, show grouped results rather than exposing every hidden test detail.
 
 Example hidden display:
 
@@ -691,7 +692,7 @@ Example hidden display:
 
 ## 33. Screenshots vs logs/traces
 
-For hackathon MVP, screenshots and pass/fail summaries are enough for judge comprehension.
+For the current product slice, screenshots and pass/fail summaries are enough for demo comprehension.
 
 Logs and Playwright traces are useful later for debugging, but they are not required for the core 2-minute demo.
 
@@ -721,14 +722,14 @@ For future product credibility:
 - External network behavior should be logged or restricted in serious competitions.
 - Secrets must never be shown in prompts or run artifacts.
 
-For hackathon:
+For the demo:
 
 - Communicate these as design principles.
 - Implement only the parts needed for the demo.
 
-## 35. Success criteria for tomorrow
+## 35. Success criteria
 
-The product should be judged as successful if:
+The product is successful if:
 
 - The landing page clearly explains PromptGolf in under 10 seconds.
 - The provocative opening line lands without making the product seem unserious.

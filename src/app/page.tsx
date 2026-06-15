@@ -24,7 +24,7 @@ export default function Home() {
       <Section className="relative grid items-center gap-12 overflow-hidden pb-14 pt-16 lg:grid-cols-[1.05fr_0.95fr]">
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-r from-paper via-paper/72 to-paper/18" />
         <div className="relative z-10">
-          <Eyebrow>Agent Forge · live</Eyebrow>
+          <Eyebrow>Live benchmark</Eyebrow>
           <h1 className="mt-7 max-w-xl text-5xl font-semibold tracking-[-0.04em] text-balance text-ink sm:text-6xl lg:text-7xl">
             Your models don&apos;t have a skill issue. <span className="text-accent">You do.</span>
           </h1>

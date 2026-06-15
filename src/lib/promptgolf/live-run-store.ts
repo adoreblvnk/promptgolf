@@ -127,5 +127,5 @@ export function sanitizeLog(input: string) {
     .slice(0, 1000);
 }
 
-// Hackathon note: this store is intentionally process-local and non-persistent.
+// Demo note: this store is intentionally process-local and non-persistent.
 // It keeps the live demo simple; production should move runs/events/artifacts to a durable DB/blob store.

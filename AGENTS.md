@@ -2,7 +2,7 @@
 
 Use `PROJECT_CONTEXT.md` as the source of truth for PromptGolf. This file summarizes the working rules agents must preserve while implementing.
 
-PromptGolf is a competitive benchmark for AI-spec writing: fewer prompts, more passing tests. Build it as a polished full product for the Agent Forge AI Hackathon, not as a rough MVP.
+PromptGolf is a competitive benchmark for AI-spec writing: fewer prompts, more passing tests. Build it as a polished full product, not as a rough MVP.
 
 ## Core product framing
 
@@ -20,7 +20,7 @@ PromptGolf is a competitive benchmark for AI-spec writing: fewer prompts, more p
 - shadcn/ui.
 - AI SDK v6.
 - Codex CLI provider for main model usage because the ChatGPT subscription is unlimited there.
-- Moonshot/Kimi or OpenAI for AI SDK tool-calling flows; prefer Moonshot/Kimi for sponsor-visible paths and OpenAI as fallback/specific-fit provider.
+- Moonshot/Kimi or OpenAI for AI SDK tool-calling flows; prefer Moonshot/Kimi for demo-visible paths and OpenAI as fallback/specific-fit provider.
 - Do not use the Google AI SDK provider.
 - TokenRouter as model gateway where possible.
 - Daytona as sandbox/run infrastructure where possible.
@@ -40,7 +40,7 @@ Codex provider notes:
 Tool-calling provider notes:
 
 - OpenAI credits exist but are limited. Use sparingly.
-- Use Moonshot/Kimi or OpenAI for AI SDK tool-calling flows. Prefer Moonshot/Kimi when it fits because `MOONSHOT_API_KEY` is present and it strengthens the sponsor story; use OpenAI as the reliable fallback or when it fits a specific tool-call path better.
+- Use Moonshot/Kimi or OpenAI for AI SDK tool-calling flows. Prefer Moonshot/Kimi when it fits because `MOONSHOT_API_KEY` is present; use OpenAI as the reliable fallback or when it fits a specific tool-call path better.
 - Do not invent model names. Use only models from the user's provided `OpenAIChatModelId` allowlist. Practical fallback picks: `gpt-5.4-mini`, `gpt-5-mini`, `gpt-4.1-mini`, `o4-mini`, or `gpt-4o-mini`.
 
 Environment/API key notes:
@@ -82,15 +82,15 @@ Scoring should reward public tests, hidden tests, UX/style, and fewer prompts. D
 - Deterministic classification into naive, structured, and expert runs remains acceptable for the local product seed scorecards; provider status must come from live adapters or explicit unavailable/degraded states.
 - Keep run pages, leaderboard, scorecards, and API routes functional under `npm run build` and Playwright.
 
-## Sponsor posture
+## Provider posture
 
 Use:
 
 - Daytona: isolated run/build/test sandbox using `DAYTONA_API_KEY`; if sandbox creation is not enabled, show a real credentialed connectivity/status probe plus an honest disabled/degraded state.
 - TokenRouter: model gateway for hidden-test generation, prompt feedback, tool-calling model paths, and model usage display using `TOKENROUTER_API_KEY`.
-- Kimi/Moonshot: sponsored model backend/test generator and primary tool-calling provider candidate using `MOONSHOT_API_KEY`.
+- Kimi/Moonshot: model backend/test generator and primary tool-calling provider candidate using `MOONSHOT_API_KEY`.
 
-Do not shoehorn Bright Data, Nosana, SenseNova, Terminal 3, VideoDB, or Google AI unless the scope changes.
+Do not add unrelated provider integrations unless the scope changes.
 
 ## Quality bar
 

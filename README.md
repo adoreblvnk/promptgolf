@@ -2,16 +2,16 @@
 
 PromptGolf is a competitive benchmark for AI-spec writing: fewer prompts, more passing tests.
 
-It is built as a polished Agent Forge Singapore hackathon demo. The core flow shows how a vague prompt can pass visible requirements while failing hidden production-style checks, and how a stronger domain-aware spec survives those checks.
+The current demo is being prepared for [Agnes AI Hackathon @ SMU](https://luma.com/s9s8bjla). The core flow shows how a vague prompt can pass visible requirements while failing hidden production-style checks, and how a stronger domain-aware spec survives those checks.
 
 ## Demo flow
 
 1. Open the landing page.
 2. Start the Mini Checkout + Promo Code Engine challenge.
-3. Read the public brief, hidden-test teaser, and prompt guide.
-4. Submit a prompt through `POST /api/runs`; the local adapter classifies it as naive, structured, or expert and resolves the corresponding run.
-5. Inspect the resolved scorecard, generated checkout preview, hidden-test results, Daytona sandbox/run timeline, and TokenRouter/Codex provider posture.
-6. Compare naive, structured, and expert runs on the leaderboard.
+3. Read the public brief and hidden-test teaser.
+4. Submit a prompt from the challenge page; the app starts a live run and redirects to `/live-runs/[id]`.
+5. Inspect the generated checkout preview, hidden-test replay, streaming log, Daytona sandbox posture, and TokenRouter/Kimi provider state.
+6. Compare the seeded naive, structured, and expert reference runs on the leaderboard.
 
 ## Stack
 
@@ -30,7 +30,7 @@ It is built as a polished Agent Forge Singapore hackathon demo. The core flow sh
 - Codex does not support AI SDK tool calls, so current generation/evaluation boundaries do not depend on Codex tool calls.
 - OpenAI is only a fallback path or future tool-call path.
 - Daytona, TokenRouter, and Moonshot/Kimi are behind live adapters. When keys exist, the app performs credentialed probes/model calls and reports connected or degraded state.
-- Kimi/Moonshot is the sponsor-visible primary model path for prompt feedback/test-generation. TokenRouter uses `https://api.tokenrouter.com/v1` through an OpenAI-compatible adapter.
+- Kimi/Moonshot is the primary model path for prompt feedback/test-generation. TokenRouter uses `https://api.tokenrouter.com/v1` through an OpenAI-compatible adapter.
 - Tests use stubbed provider boundaries so CI never needs or exposes real secrets.
 
 ## Local commands
@@ -56,7 +56,8 @@ Then open <http://127.0.0.1:3000>.
 - `/` — landing page
 - `/challenges` — challenge catalog
 - `/challenges/mini-checkout-promo-engine` — primary demo challenge
-- `/runs/expert-checkout` — expert run scorecard
+- `/live-runs/[id]` — live generated app run and Playwright replay
+- `/runs/expert-checkout` — expert reference run scorecard
 - `/leaderboard` — ranked seeded runs
 - `/api/challenges`, `/api/runs`, `/api/runs/[id]`, `/api/score`, `/api/generate-tests` — local product APIs with live provider boundaries where configured
 
@@ -64,7 +65,9 @@ Then open <http://127.0.0.1:3000>.
 
 The submission path is intentionally real and provider-aware:
 
-1. The challenge page posts `{ prompt, challengeSlug }` to `/api/runs`.
-2. The API validates the prompt, classifies it from prompt content, probes Daytona, and requests Moonshot/TokenRouter feedback when credentials are configured.
-3. The route returns the matching product seed run (`naive-checkout`, `structured-checkout`, or `expert-checkout`) plus real provider state.
-4. The browser navigates to `/runs/:id`, where the scorecard, tests, provider posture, sandbox/run stages, and leaderboard evidence are rendered.
+1. The challenge form validates the prompt and starts a live run.
+2. Kimi/Moonshot generates a self-contained checkout artifact from the submitted spec.
+3. Daytona serves the preview when available; otherwise the app reports the fallback state honestly.
+4. TokenRouter drafts evaluator posture when configured.
+5. Playwright scores the generated app and streams the evidence to `/live-runs/[id]`.
+6. Seeded naive, structured, and expert scorecards remain available as stable reference runs.

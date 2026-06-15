@@ -6,17 +6,17 @@ product
 
 ## Users
 
-PromptGolf is for AI-native developers, hackathon builders, engineering teams, bootcamp instructors, and students who already use or evaluate coding agents. They arrive under time pressure, usually during a demo, workshop, or practice session, and need to prove that a written AI spec can produce a working app rather than a plausible screenshot.
+PromptGolf is for AI-native developers, AI builders, engineering teams, bootcamp instructors, and students who already use or evaluate coding agents. They arrive under time pressure, usually during a demo, workshop, or practice session, and need to prove that a written AI spec can produce a working app rather than a plausible screenshot.
 
 ## Product Purpose
 
 PromptGolf is a competitive benchmark for AI-spec writing: fewer prompts, more passing tests. Players select a challenge, submit a compact software spec to an agentic build loop, inspect the generated run evidence, and compare scores on a leaderboard. Success means the product makes the hidden-tests thesis obvious in minutes: vague prompts pass visible basics; domain-aware prompts survive production edge cases.
 
-For the local hackathon slice, the build loop is functional and provider-aware: prompt submission posts to `/api/runs`, classifies the spec as naive/structured/expert, probes live provider adapters where configured, resolves a product seed run, and opens the scorecard.
+For the local product slice, the build loop is functional and provider-aware. The challenge form starts a live run, Kimi generates a checkout artifact, Daytona serves the preview when available, TokenRouter drafts evaluator posture where configured, and Playwright scores the generated app. Seeded scorecards still exist as stable reference runs for naive, structured, and expert comparisons.
 
 ## Brand Personality
 
-Precise, competitive, and slightly provocative. The voice should feel like an evaluator built by people who ship software: direct, test-minded, confident, and allergic to vague prompt mysticism. The emotional goal is expert trust with enough bite for a hackathon demo.
+Precise, competitive, and slightly provocative. The voice should feel like an evaluator built by people who ship software: direct, test-minded, confident, and allergic to vague prompt mysticism. The emotional goal is expert trust with enough bite for a live demo.
 
 ## Anti-references
 
@@ -28,8 +28,8 @@ Do not make PromptGolf feel like a generic prompt-education course, a chatbot wr
 2. Make the thesis visible: naive, structured, and expert runs should be comparable at a glance.
 3. Preserve demo stability: product seed scorecards stay stable, while provider adapters report connected, unavailable, or degraded state honestly.
 4. Reward domain knowledge: hidden tests should feel like realistic engineering traps, not trivia.
-5. Look judge-ready: the UI should feel like evaluation infrastructure, not a hackathon placeholder.
+5. Look product-ready: the UI should feel like evaluation infrastructure, not a placeholder.
 
 ## Accessibility & Inclusion
 
-Target WCAG 2.2 AA for core flows. Preserve high text contrast on dark surfaces, visible focus states, keyboard-operable navigation and submission controls, semantic headings, labels for prompt inputs, responsive layouts down to mobile widths, and reduced-motion-safe transitions.
+Target WCAG 2.2 AA for core flows. Preserve strong ink-on-paper contrast, visible focus states, keyboard-operable navigation and submission controls, semantic headings, labels for prompt inputs, responsive layouts down to mobile widths, and reduced-motion-safe transitions.
