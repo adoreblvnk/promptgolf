@@ -3,6 +3,32 @@ import { getChallenge } from "@/lib/promptgolf";
 
 const AGNES_IMAGE_API = "https://apihub.agnes-ai.com/v1/images/generations";
 
+const STYLE_DIRECTION = `Style design direction:
+
+- Use an Editorial Luxury plus Soft Structuralism blend: warm ivory or soft silver background, deep espresso/ink text, restrained sage/green success, refined amber warning, and one confident dark CTA.
+- Use a high-end type stack such as Plus Jakarta Sans, Geist, Avenir Next, ui-sans-serif, system-ui; do not use Inter, Roboto, Arial, Open Sans, or Helvetica in the CSS font-family.
+- Use an asymmetrical two-column layout on desktop: cart content larger on the left, order summary in a tactile card on the right.
+- Use a single-column layout below 768px.
+- Use a double-bezel card structure: a subtle outer shell and an inner white/ivory core for the checkout surface and order summary.
+- Use refined spacing, clear section headings, visible hierarchy, and compact line items.
+- Use pill-shaped primary CTA and promo controls with polished hover/active states.
+- Use custom cubic-bezier transitions such as cubic-bezier(.32,.72,0,1) for color, transform, and opacity only.
+- Do not use decorative glassmorphism, gradient text, generic gray Bootstrap cards, huge dark drop shadows, or noisy icon sets.
+- Make focus states visible.
+
+Mobile requirements:
+
+- At 390px width, there must be no horizontal scrolling.
+- Controls must stack cleanly.
+- Buttons and inputs must be at least 40px high.
+- Quantity buttons should be easy to tap.
+
+Accessibility requirements:
+
+- Use semantic <main>, <section>, headings, labels, and buttons.
+- Use aria-live="polite" or role="status" for promo and confirmation messages.
+- Do not rely on color alone for errors or stock status.`;
+
 export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const challenge = getChallenge(slug);
@@ -15,14 +41,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: "AGNES image generation is not configured" }, { status: 503 });
   }
 
-  const groups = [
-    challenge.hiddenTeasers.slice(0, 3),
-    challenge.hiddenTeasers.slice(3, 7),
-    challenge.hiddenTeasers.slice(7, 10),
-  ];
+  const requirements = [challenge.publicBrief, ...challenge.publicRequirements].join(" ");
 
-  const imagePrompts = groups.map(
-    (group) => `${challenge.publicBrief} ${group.join(", ")}. white background, no text in the image, no letters.`
+  const imagePrompts = [1, 2, 3].map(
+    () => `${requirements} ${STYLE_DIRECTION} White background, no text in the image, no letters.`
   );
 
   const results = await Promise.allSettled(
