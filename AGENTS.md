@@ -2,11 +2,11 @@
 
 Use `PROJECT_CONTEXT.md` as the source of truth for PromptGolf. This file summarizes the working rules agents must preserve while implementing.
 
-PromptGolf is a competitive benchmark for AI-spec writing: fewer prompts, more passing tests. Build it as a polished full product, not as a rough MVP.
+PromptGolf is a competitive benchmark for agentic prompting: fewer prompts, more passing tests. Build it as a polished full product, not as a rough MVP.
 
 ## Core product framing
 
-- One-liner: LeetCode for AI-era software specs.
+- One-liner: LeetCode for agentic prompting.
 - Hook: “Everyone loves to benchmark models, but after seeing your prompts, I really ought to benchmark y’all instead.”
 - Do not frame it as generic prompt education; frame it as evaluation infrastructure for agentic software development.
 - The core insight: prompt structure is teachable, but hidden tests reveal real technical/domain knowledge.

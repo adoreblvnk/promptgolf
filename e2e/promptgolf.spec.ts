@@ -4,7 +4,7 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 
 test("PromptGolf demo flow renders challenge, leaderboard, and expert run", async ({ page }) => {
   await page.goto(baseURL);
-  await expect(page.getByRole("heading", { name: "LeetCode for AI-era software specs." })).toBeVisible();
+  await expect(page).toHaveTitle("PromptGolf - LeetCode for agentic prompting");
   await expect(page.getByText("Live sandbox API credentials are configured")).toBeVisible();
   await page.getByRole("link", { name: /Try the challenge/i }).click();
 

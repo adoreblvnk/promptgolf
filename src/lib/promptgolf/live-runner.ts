@@ -49,7 +49,7 @@ const SKILL_DIAGNOSIS_RESPONSE_FORMAT = {
       required: ["verdict", "promptingScore", "technicalScore", "summary", "promptingFeedback", "technicalFeedback"],
       properties: {
         verdict: { type: "string", enum: ["prompting", "technical", "balanced"], description: "Primary gap shown by the run." },
-        promptingScore: { type: "integer", minimum: 0, maximum: 10, description: "How strong the contestant prompt was as a software spec." },
+        promptingScore: { type: "integer", minimum: 0, maximum: 10, description: "How strong the contestant prompt was as an agentic prompt." },
         technicalScore: { type: "integer", minimum: 0, maximum: 10, description: "How much relevant product/domain engineering knowledge the prompt encoded." },
         summary: { type: "string", maxLength: 220, description: "One concise sentence explaining the score pattern." },
         promptingFeedback: { type: "string", maxLength: 180, description: "One concise actionable prompting improvement." },
@@ -316,7 +316,7 @@ async function evaluateStyleWithAgnes(id: string, url: string): Promise<LiveRunT
     });
 
     const tests = STYLE_TESTS.map((test) => styleResultFrom(data, test.id, test.label) ?? { ...test, passed: false, note: "Agnes AI did not return a valid verdict for this style check." });
-    tests.forEach((test) => appendLiveRunEvent(id, "score", test.passed ? "success" : "error", `${test.passed ? "PASS" : "FAIL"}: ${test.label} — ${sanitizeLog(test.note)}`));
+    tests.forEach((test) => appendLiveRunEvent(id, "score", test.passed ? "success" : "error", `${test.passed ? "PASS" : "FAIL"}: ${test.label} - ${sanitizeLog(test.note)}`));
     return tests;
   } catch (error) {
     const message = sanitizeLog(error instanceof Error ? error.message : String(error));
@@ -534,7 +534,7 @@ async function runPlaywright(id: string, url: string) {
   return evaluateSpecsWithPlaywright({
     url,
     specs: checkoutEvaluatorSpecs,
-    onResult: (result) => appendLiveRunEvent(id, "test", result.passed ? "success" : "error", `${result.passed ? "PASS" : "FAIL"}: ${result.label} — ${sanitizeLog(result.note)}`),
+    onResult: (result) => appendLiveRunEvent(id, "test", result.passed ? "success" : "error", `${result.passed ? "PASS" : "FAIL"}: ${result.label} - ${sanitizeLog(result.note)}`),
   });
 }
 

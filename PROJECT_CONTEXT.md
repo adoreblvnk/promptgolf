@@ -6,9 +6,9 @@ This document is the source of truth for building PromptGolf. Current event link
 
 ## Product Positioning
 
-PromptGolf is a competitive benchmark for AI-spec writing: fewer prompts, more passing tests.
+PromptGolf is a competitive benchmark for agentic prompting: fewer prompts, more passing tests.
 
-One-liner: PromptGolf is LeetCode for AI-era software specs.
+One-liner: PromptGolf is LeetCode for agentic prompting.
 
 Hook: “Everyone loves to benchmark models, but after seeing your prompts, I really ought to benchmark y’all instead.”
 
@@ -20,7 +20,7 @@ Keep event-specific logistics out of product copy. The README may link to the cu
 
 Say:
 
-- PromptGolf benchmarks AI-spec writing, not prompt aesthetics.
+- PromptGolf benchmarks agentic prompting, not prompt aesthetics.
 - Hidden tests reward requirements thinking, constraints, edge cases, accessibility, failure states, and domain knowledge.
 - A structured spec format improves coverage, but domain knowledge wins.
 - The winner is not the person who writes the longest prompt; the winner says exactly enough for the agent-built app to pass hidden tests.
@@ -54,24 +54,24 @@ Routine agent verification should prefer `npm run lint` and `npm run build`. Do 
 
 User-facing routes:
 
-- `/` — landing page.
-- `/challenges` — challenge catalog.
-- `/challenges/[slug]` — challenge detail, public brief, prompt guide, and prompt submission.
-- `/live-runs/[id]` — live generated checkout run with SSE timeline, same-origin preview proxy, Playwright results, and Agnes diagnosis.
-- `/runs/[id]` — seeded/reference scorecard run page.
-- `/leaderboard` — seeded leaderboard.
+- `/` - landing page.
+- `/challenges` - challenge catalog.
+- `/challenges/[slug]` - challenge detail, public brief, prompt guide, and prompt submission.
+- `/live-runs/[id]` - live generated checkout run with SSE timeline, same-origin preview proxy, Playwright results, and Agnes diagnosis.
+- `/runs/[id]` - seeded/reference scorecard run page.
+- `/leaderboard` - seeded leaderboard.
 
 API routes:
 
-- `/api/challenges` — challenge listing/data.
-- `/api/runs` — deterministic seeded-run classification for naive/structured/expert prompts.
-- `/api/score` — score computation endpoint.
-- `/api/generate-tests` — TokenRouter-first evaluator draft endpoint with Agnes fallback.
-- `/api/live-runs` — create a live provider-backed run.
-- `/api/live-runs/[id]` — poll live run state without exposing prompt or generated HTML.
-- `/api/live-runs/[id]/events` — stream live run timeline events over SSE.
-- `/api/live-runs/[id]/artifact` — serve the generated HTML artifact for CI or explicit local fallback.
-- `/api/live-runs/[id]/preview` — same-origin proxy for Daytona/local preview URLs with allowed-host checks.
+- `/api/challenges` - challenge listing/data.
+- `/api/runs` - deterministic seeded-run classification for naive/structured/expert prompts.
+- `/api/score` - score computation endpoint.
+- `/api/generate-tests` - TokenRouter-first evaluator draft endpoint with Agnes fallback.
+- `/api/live-runs` - create a live provider-backed run.
+- `/api/live-runs/[id]` - poll live run state without exposing prompt or generated HTML.
+- `/api/live-runs/[id]/events` - stream live run timeline events over SSE.
+- `/api/live-runs/[id]/artifact` - serve the generated HTML artifact for CI or explicit local fallback.
+- `/api/live-runs/[id]/preview` - same-origin proxy for Daytona/local preview URLs with allowed-host checks.
 
 ## Primary Demo Challenge
 
@@ -395,7 +395,7 @@ For the current demo, implement only what is needed for the live flow, but never
 ## Demo Script
 
 1. Open with: “Everyone benchmarks models, but after seeing your prompts, I really ought to benchmark y’all instead.”
-2. Explain: “PromptGolf benchmarks AI-spec writing: fewer prompts, more passing tests.”
+2. Explain: “PromptGolf benchmarks agentic prompting: fewer prompts, more passing tests.”
 3. Show the full-stack ecommerce checkout public brief.
 4. Submit or show a naive prompt score: visible app, hidden failures.
 5. Show the PromptGolf spec guide.

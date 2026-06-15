@@ -30,11 +30,11 @@ const shareImage = {
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "PromptGolf — LeetCode for AI-era software specs",
-  description: "Competitive benchmark for AI-spec writing: fewer prompts, more passing tests.",
+  title: "PromptGolf - LeetCode for agentic prompting",
+  description: "Competitive benchmark for agentic prompting: fewer prompts, more passing tests.",
   openGraph: {
-    title: "PromptGolf — LeetCode for AI-era software specs",
-    description: "Competitive benchmark for AI-spec writing: fewer prompts, more passing tests.",
+    title: "PromptGolf - LeetCode for agentic prompting",
+    description: "Competitive benchmark for agentic prompting: fewer prompts, more passing tests.",
     url: "/",
     siteName: "PromptGolf",
     images: [shareImage],
@@ -42,8 +42,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "PromptGolf — LeetCode for AI-era software specs",
-    description: "Competitive benchmark for AI-spec writing: fewer prompts, more passing tests.",
+    title: "PromptGolf - LeetCode for agentic prompting",
+    description: "Competitive benchmark for agentic prompting: fewer prompts, more passing tests.",
     images: [shareImage],
   },
 };

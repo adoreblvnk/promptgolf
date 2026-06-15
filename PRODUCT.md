@@ -10,7 +10,7 @@ PromptGolf is for AI-native developers, AI builders, engineering teams, bootcamp
 
 ## Product Purpose
 
-PromptGolf is a competitive benchmark for AI-spec writing: fewer prompts, more passing tests. Players select a challenge, submit a compact software spec to an agentic build loop, inspect the generated run evidence, and compare scores on a leaderboard. Success means the product makes the hidden-tests thesis obvious in minutes: vague prompts pass visible basics; domain-aware prompts survive production edge cases.
+PromptGolf is a competitive benchmark for agentic prompting: fewer prompts, more passing tests. Players select a challenge, submit a compact agentic prompt to an agentic build loop, inspect the generated run evidence, and compare scores on a leaderboard. Success means the product makes the hidden-tests thesis obvious in minutes: vague prompts pass visible basics; domain-aware prompts survive production edge cases.
 
 For the local product slice, the build loop is functional and provider-aware. The challenge form starts a live run, Agnes AI generates a checkout artifact, the sandbox serves the preview when available, TokenRouter drafts evaluator posture where configured, and Playwright scores the generated app. Seeded scorecards still exist as stable reference runs for naive, structured, and expert comparisons.
 

@@ -179,7 +179,7 @@ const seededRunsBase = [
     promptExcerpt: "Use integer-cents totals; normalize promos; cap discounts; pre-discount free shipping; enforce stock, double-submit, loading/error, ARIA, and mobile behavior.",
     hiddenPassed: hiddenTests.map(([id]) => id),
     uxScore: 9,
-    failureCategories: ["None — all requested hidden checkout checks passed"],
+    failureCategories: ["None - all requested hidden checkout checks passed"],
     screenshotTitle: "Production-aware checkout",
     screenshotCaption: "The prompt names the domain quirks hidden tests care about, so the generated app survives reality.",
   },

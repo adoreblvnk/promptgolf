@@ -1,7 +1,7 @@
 <div align="center">
   <h1>PromptGolf</h1>
   <p>
-    LeetCode for AI-era software specs: fewer prompts, more passing tests.
+    LeetCode for agentic prompting: fewer prompts, more passing tests.
   </p>
   <p>
     Built with Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, AI SDK, Agnes AI, TokenRouter, Codex CLI, and Playwright.
