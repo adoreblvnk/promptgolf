@@ -7,8 +7,8 @@ import { deterministicCheckoutArtifact } from "./live-run-fixture";
 import { appendLiveRunEvent, createLiveRun, getLiveRun, sanitizeLog, updateLiveRun } from "./live-run-store";
 import { evaluateSpecsWithPlaywright } from "./playwright-evaluator";
 
-const MOONSHOT_BASE_URL = process.env.MOONSHOT_API_BASE_URL ?? "https://api.moonshot.ai/v1";
-const MOONSHOT_MODEL = process.env.MOONSHOT_MODEL ?? "kimi-k2.6";
+const AGNES_AI_BASE_URL = process.env.AGNES_AI_BASE_URL ?? "https://apihub.agnes-ai.com/v1";
+const AGNES_AI_MODEL = process.env.AGNES_AI_MODEL ?? "agnes-2.0-flash";
 const GENERATION_TIMEOUT_MS = Number(process.env.PROMPTGOLF_LIVE_GENERATION_TIMEOUT_MS ?? 240000);
 const GENERATION_MAX_TOKENS = Number(process.env.PROMPTGOLF_LIVE_GENERATION_MAX_TOKENS ?? 4200);
 const DAYTONA_CREATE_TIMEOUT_SECONDS = Number(process.env.PROMPTGOLF_DAYTONA_CREATE_TIMEOUT_SECONDS ?? 30);
@@ -136,7 +136,7 @@ async function readStreamedChatCompletion(response: Response) {
 async function generateViaOpenAICompatible(input: { apiKey: string; baseUrl: string; model: string; provider: string; prompt: string }) {
   const controller = new AbortController();
   let timedOut = false;
-  const useStreaming = input.provider === "Moonshot/Kimi";
+  const useStreaming = true;
   const timeout = setTimeout(() => {
     timedOut = true;
     controller.abort();
@@ -151,10 +151,9 @@ async function generateViaOpenAICompatible(input: { apiKey: string; baseUrl: str
       },
       body: JSON.stringify({
         model: input.model,
-        temperature: input.provider === "Moonshot/Kimi" && input.model === "kimi-k2.6" ? 0.6 : 0.25,
+        temperature: 0.25,
         max_tokens: GENERATION_MAX_TOKENS,
         stream: useStreaming,
-        ...(input.provider === "Moonshot/Kimi" && input.model === "kimi-k2.6" ? { thinking: { type: "disabled" } } : {}),
         messages: [
           {
             role: "system",
@@ -187,22 +186,22 @@ async function generateArtifact(id: string, prompt: string) {
     return deterministicCheckoutArtifact();
   }
 
-  const moonshotKey = process.env.MOONSHOT_API_KEY?.trim();
-  if (moonshotKey) {
+  const agnesKey = process.env.AGNES_AI_API_KEY?.trim();
+  if (agnesKey) {
     try {
-      appendLiveRunEvent(id, "generate", "info", `Generating self-contained checkout app with Moonshot/Kimi (${MOONSHOT_MODEL}).`);
-      const html = await generateViaOpenAICompatible({ apiKey: moonshotKey, baseUrl: MOONSHOT_BASE_URL, model: MOONSHOT_MODEL, provider: "Moonshot/Kimi", prompt });
-      observeArtifactContract(id, html, "Moonshot/Kimi");
-      updateLiveRun(id, { providerMode: `Moonshot/Kimi live · ${MOONSHOT_MODEL}` });
-      appendLiveRunEvent(id, "generate", "success", "Moonshot/Kimi returned a checkout artifact. It will be evaluated as generated, with no deterministic repair artifact.");
+      appendLiveRunEvent(id, "generate", "info", `Generating self-contained checkout app with Agnes AI (${AGNES_AI_MODEL}).`);
+      const html = await generateViaOpenAICompatible({ apiKey: agnesKey, baseUrl: AGNES_AI_BASE_URL, model: AGNES_AI_MODEL, provider: "Agnes AI", prompt });
+      observeArtifactContract(id, html, "Agnes AI");
+      updateLiveRun(id, { providerMode: `Agnes AI live · ${AGNES_AI_MODEL}` });
+      appendLiveRunEvent(id, "generate", "success", "Agnes AI returned a checkout artifact. It will be evaluated as generated, with no deterministic repair artifact.");
       return html;
     } catch (error) {
-      updateLiveRun(id, { providerMode: "Moonshot/Kimi live generation failed" });
-      throw new Error(`Moonshot/Kimi live generation failed without repair fallback: ${sanitizeLog(error instanceof Error ? error.message : String(error))}`);
+      updateLiveRun(id, { providerMode: "Agnes AI live generation failed" });
+      throw new Error(`Agnes AI live generation failed without repair fallback: ${sanitizeLog(error instanceof Error ? error.message : String(error))}`);
     }
   } else {
-    updateLiveRun(id, { providerMode: "Moonshot/Kimi unavailable" });
-    throw new Error("MOONSHOT_API_KEY is not configured. Live demo mode does not use deterministic repair artifacts.");
+    updateLiveRun(id, { providerMode: "Agnes AI unavailable" });
+    throw new Error("AGNES_AI_API_KEY is not configured. Live demo mode does not use deterministic repair artifacts.");
   }
 }
 
@@ -339,7 +338,7 @@ async function executeLiveRun(id: string, origin: string) {
   if (!run) return;
   try {
     updateLiveRun(id, { status: "running" });
-    appendLiveRunEvent(id, "generate", "info", "Starting live artifact generation. Provider probes are deferred so they do not compete with the Kimi builder call.");
+    appendLiveRunEvent(id, "generate", "info", "Starting live artifact generation. Provider probes are deferred so they do not compete with the Agnes builder call.");
     const html = await generateArtifact(id, run.prompt);
     updateLiveRun(id, { artifactHtml: html });
     collectRunProviderState(run.prompt).then((providerState) => updateLiveRun(id, { providerState })).catch(() => undefined);

@@ -20,7 +20,7 @@ PromptGolf is a competitive benchmark for AI-spec writing: fewer prompts, more p
 - shadcn/ui.
 - AI SDK v6.
 - Codex CLI provider for main model usage because the ChatGPT subscription is unlimited there.
-- Moonshot/Kimi or OpenAI for AI SDK tool-calling flows; prefer Moonshot/Kimi for demo-visible paths and OpenAI as fallback/specific-fit provider.
+- Agnes AI or OpenAI for AI SDK tool-calling flows; prefer Agnes AI for demo-visible paths and OpenAI as fallback/specific-fit provider.
 - Do not use the Google AI SDK provider.
 - TokenRouter as model gateway where possible.
 - Daytona as sandbox/run infrastructure where possible.
@@ -40,7 +40,7 @@ Codex provider notes:
 Tool-calling provider notes:
 
 - OpenAI credits exist but are limited. Use sparingly.
-- Use Moonshot/Kimi or OpenAI for AI SDK tool-calling flows. Prefer Moonshot/Kimi when it fits because `MOONSHOT_API_KEY` is present; use OpenAI as the reliable fallback or when it fits a specific tool-call path better.
+- Use Agnes AI or OpenAI for AI SDK tool-calling flows. Prefer Agnes AI when it fits because `AGNES_AI_API_KEY` is present; use OpenAI as the reliable fallback or when it fits a specific tool-call path better.
 - Do not invent model names. Use only models from the user's provided `OpenAIChatModelId` allowlist. Practical fallback picks: `gpt-5.4-mini`, `gpt-5-mini`, `gpt-4.1-mini`, `o4-mini`, or `gpt-4o-mini`.
 
 Environment/API key notes:
@@ -48,7 +48,7 @@ Environment/API key notes:
 - `.env` already has some keys. Never commit or print real API keys.
 - Daytona API base URL: `https://app.daytona.io/api`.
 - TokenRouter API base URL: `https://api.tokenrouter.com/v1`.
-- Keep Daytona/TokenRouter/Moonshot integrations behind adapters. When keys are absent, report unavailable/degraded state honestly rather than simulating provider success.
+- Keep Daytona/TokenRouter/Agnes integrations behind adapters. When keys are absent, report unavailable/degraded state honestly rather than simulating provider success.
 
 ## Primary challenge
 
@@ -88,7 +88,7 @@ Use:
 
 - Daytona: isolated run/build/test sandbox using `DAYTONA_API_KEY`; if sandbox creation is not enabled, show a real credentialed connectivity/status probe plus an honest disabled/degraded state.
 - TokenRouter: model gateway for hidden-test generation, prompt feedback, tool-calling model paths, and model usage display using `TOKENROUTER_API_KEY`.
-- Kimi/Moonshot: model backend/test generator and primary tool-calling provider candidate using `MOONSHOT_API_KEY`.
+- Agnes AI: model backend/test generator and primary tool-calling provider candidate using `AGNES_AI_API_KEY`.
 
 Do not add unrelated provider integrations unless the scope changes.
 

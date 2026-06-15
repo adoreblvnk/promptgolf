@@ -123,7 +123,7 @@ export function sanitizeLog(input: string) {
   return input
     .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer [redacted]")
     .replace(/sk-[A-Za-z0-9_-]+/gi, "[redacted-key]")
-    .replace(/(MOONSHOT_API_KEY|TOKENROUTER_API_KEY|DAYTONA_API_KEY)=\S+/gi, "$1=[redacted]")
+    .replace(/(AGNES_AI_API_KEY|TOKENROUTER_API_KEY|DAYTONA_API_KEY)=\S+/gi, "$1=[redacted]")
     .slice(0, 1000);
 }
 

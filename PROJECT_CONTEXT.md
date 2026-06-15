@@ -9,12 +9,12 @@ This document is the source of truth for building PromptGolf. Current event link
 The current product slice is a real local flow with provider-backed boundaries. Provider integrations use live adapters where the required keys are present and report explicit unavailable/degraded state when a service cannot be reached.
 
 - The challenge page submits prompts through a server action that starts a live run and redirects to `/live-runs/[id]`.
-- The live run path uses Kimi/Moonshot generation, Daytona preview infrastructure when available, TokenRouter evaluator posture where configured, and Playwright scoring against the generated artifact.
+- The live run path uses Agnes 2.0 Flash generation, Daytona preview infrastructure when available, TokenRouter evaluator posture where configured, and Playwright scoring against the generated artifact.
 - `POST /api/runs` remains available for deterministic naive/structured/expert seeded reference runs.
-- Run pages render scorecards, public/hidden test results, generated-checkout preview, provider posture, and a sandbox/run timeline whose provider state is backed by Daytona/TokenRouter/Moonshot adapters.
+- Run pages render scorecards, public/hidden test results, generated-checkout preview, provider posture, and a sandbox/run timeline whose provider state is backed by Daytona/TokenRouter/Agnes adapters.
 - The leaderboard ranks seeded runs by computed score.
-- `DAYTONA_API_KEY`, `TOKENROUTER_API_KEY`, and `MOONSHOT_API_KEY` are present in `.env`; do not print them. Use real Daytona/TokenRouter/Moonshot adapter paths when provider work is requested, with unavailable/degraded states rather than fake provider success.
-- Codex CLI via `ai-sdk-provider-codex-cli` remains the default builder-agent boundary; Codex has no AI SDK tool-call support, so AI SDK tool-calling flows should use Moonshot/Kimi or OpenAI adapters instead.
+- `DAYTONA_API_KEY`, `TOKENROUTER_API_KEY`, and `AGNES_AI_API_KEY` are present in `.env`; do not print them. Use real Daytona/TokenRouter/Agnes adapter paths when provider work is requested, with unavailable/degraded states rather than fake provider success.
+- Codex CLI via `ai-sdk-provider-codex-cli` remains the default builder-agent boundary; Codex has no AI SDK tool-call support, so AI SDK tool-calling flows should use Agnes AI or OpenAI adapters instead.
 - Verified commands: `npm run lint`, `npm run build`, `CI=1 npm run test:e2e`.
 
 ## 1. Product summary
@@ -351,7 +351,7 @@ Hidden tests should feel fair in hindsight: “A good engineer should have thoug
 
 ## 20. Test generation model
 
-The platform stores hidden tests initially as natural-language specifications. Default model calls should use the AI SDK Codex CLI provider because the user has unlimited ChatGPT/Codex usage. Kimi/Moonshot and OpenAI are secondary paths: Moonshot's key is present, while OpenAI credits remain limited.
+The platform stores hidden tests initially as natural-language specifications. Default model calls should use the AI SDK Codex CLI provider because the user has unlimited ChatGPT/Codex usage. Agnes AI and OpenAI are secondary paths: Agnes AI's key is present, while OpenAI credits remain limited.
 
 Important: LLMs can generate the test code, but final grading should execute deterministic tests wherever possible.
 
@@ -374,10 +374,10 @@ Model/provider policy:
 - Strict Codex model IDs: `gpt-5.5`, `gpt-5.3-codex`, `gpt-5.2-codex`, `gpt-5.2-codex-max`, `gpt-5.2-codex-mini`, `gpt-5.1`, `gpt-5.2`.
 - Default Codex model: `gpt-5.5` unless a Codex-specific model is clearly better for the flow.
 - Codex does not support AI SDK tool calls. Do not design Codex flows that require `generateText`/`streamText` tools. Use Codex for builder-agent generation via CLI/process boundaries, deterministic app code, Playwright, and server-side logic outside the model call instead.
-- For AI SDK tool-calling flows, use Moonshot/Kimi or OpenAI. Prefer Moonshot/Kimi when it fits because `MOONSHOT_API_KEY` is present; use OpenAI as the reliable fallback, especially if Moonshot behavior/API fit is weaker for a specific tool-call path. Decide per flow rather than hardcoding one global tool-calling provider.
+- For AI SDK tool-calling flows, use Agnes AI or OpenAI. Prefer Agnes AI when it fits because `AGNES_AI_API_KEY` is present; use OpenAI as the reliable fallback, especially if Agnes behavior/API fit is weaker for a specific tool-call path. Decide per flow rather than hardcoding one global tool-calling provider.
 - OpenAI provider exists but credits are limited. Use it sparingly for fallback paths or flows that genuinely need tool-call support.
 - Do not use the Google AI SDK provider.
-- `DAYTONA_API_KEY`, `TOKENROUTER_API_KEY`, and `MOONSHOT_API_KEY` are present in `.env`; never print or commit their values. Daytona base URL: `https://app.daytona.io/api`. TokenRouter base URL: `https://api.tokenrouter.com/v1`. Keep live integrations behind adapters and surface unavailable/degraded state honestly on failure.
+- `DAYTONA_API_KEY`, `TOKENROUTER_API_KEY`, and `AGNES_AI_API_KEY` are present in `.env`; never print or commit their values. Daytona base URL: `https://app.daytona.io/api`. TokenRouter base URL: `https://api.tokenrouter.com/v1`. Agnes AI base URL: `https://apihub.agnes-ai.com/v1`. Keep live integrations behind adapters and surface unavailable/degraded state honestly on failure.
 
 ## 21. Provider strategy
 
@@ -387,11 +387,11 @@ Daytona is the core sandbox layer: each PromptGolf run can create an isolated en
 
 ### Use: TokenRouter
 
-TokenRouter is the model gateway now that its key is available: route Codex/OpenAI/Kimi-style calls for test generation, prompt feedback, scoring explanations, tool-calling model paths, and provider comparison while tracking model usage and cost.
+TokenRouter is the model gateway now that its key is available: route Codex/OpenAI/Agnes-style calls for test generation, prompt feedback, scoring explanations, tool-calling model paths, and provider comparison while tracking model usage and cost.
 
-### Optional: Kimi AI
+### Use: Agnes AI
 
-Kimi/Moonshot can be used as an additional coding/test-generation model and as a primary tool-calling provider because `MOONSHOT_API_KEY` is present; keep it optional if setup time threatens demo stability.
+Agnes 2.0 Flash is the primary live checkout artifact generator and can also be used as a tool-calling provider because `AGNES_AI_API_KEY` is present.
 
 ## 22. Technical architecture
 
@@ -402,7 +402,7 @@ Recommended architecture:
 - Tailwind CSS v4 for styling.
 - AI SDK v6 for model calls.
 - Codex CLI community provider as the default model provider.
-- Moonshot/Kimi or OpenAI for AI SDK tool-calling flows; prefer Moonshot/Kimi for demo-visible paths, use OpenAI as the reliable low-credit fallback or when it is the better fit for a specific tool-call path.
+- Agnes AI or OpenAI for AI SDK tool-calling flows; prefer Agnes AI for demo-visible paths, use OpenAI as the reliable low-credit fallback or when it is the better fit for a specific tool-call path.
 - TokenRouter as model gateway using `TOKENROUTER_API_KEY` and `https://api.tokenrouter.com/v1`, with explicit degraded/unavailable states if routing fails.
 - Daytona SDK/API for sandbox lifecycle and command execution using `DAYTONA_API_KEY` and `https://app.daytona.io/api`, with a credentialed status probe when sandbox creation is disabled.
 - Playwright for deterministic app evaluation.
@@ -419,7 +419,6 @@ Package snapshot from current `package.json` after scaffolding:
 - AI SDK package `ai`: ^6.0.203.
 - Codex CLI provider `ai-sdk-provider-codex-cli`: ^1.2.2.
 - `@ai-sdk/openai`: ^3.0.71, fallback/tool-call paths only.
-- `@ai-sdk/moonshotai`: ^2.0.25, model and tool-calling paths.
 - Zod: ^4.4.3.
 - lucide-react: ^1.18.0.
 - motion: ^12.40.0.
@@ -437,7 +436,7 @@ Use npm for reliability unless the user explicitly switches to pnpm/bun.
 Core install intent for model packages:
 
 ```bash
-npm install ai ai-sdk-provider-codex-cli @ai-sdk/openai @ai-sdk/moonshotai zod lucide-react motion clsx tailwind-merge
+npm install ai ai-sdk-provider-codex-cli @ai-sdk/openai zod lucide-react motion clsx tailwind-merge
 npm install -D @playwright/test playwright
 ```
 
@@ -648,7 +647,7 @@ UI copy:
 
 - “Tests generated via TokenRouter-routed model call.”
 - “Prompt feedback routed through TokenRouter.”
-- “Model: Codex / OpenAI / Kimi via TokenRouter.”
+- “Model: Codex / OpenAI / Agnes via TokenRouter.”
 
 If TokenRouter API is not integrated, keep the boundary conceptual rather than locking in code here:
 
@@ -748,7 +747,7 @@ The product is successful if:
 4. Build run page with status timeline and scorecard.
 5. Build leaderboard.
 6. Add API routes for challenges/runs/score product seed data and provider-aware status.
-7. Add Codex-first model abstraction; keep TokenRouter/OpenAI/Kimi as optional routed paths.
+7. Add Codex-first model abstraction; keep TokenRouter/OpenAI/Agnes as optional routed paths.
 8. Add Daytona sandbox runner abstraction.
 9. Add one actual Playwright test file or simulated test-run artifact for credibility.
 10. Polish UI and rehearse demo script.

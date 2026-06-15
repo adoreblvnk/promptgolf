@@ -247,7 +247,7 @@ export function LiveRunView({ id }: { id: string }) {
               {previewSrc ? (
                 <iframe ref={iframeRef} title="Generated checkout preview" src={previewSrc} sandbox="allow-scripts allow-same-origin" className="h-[640px] w-full bg-white" />
               ) : (
-                <div className="flex h-[640px] items-center justify-center border-t border-dashed border-rule bg-paper text-sm text-ink-muted">Preview appears after Kimi returns HTML and the sandbox route is selected.</div>
+                <div className="flex h-[640px] items-center justify-center border-t border-dashed border-rule bg-paper text-sm text-ink-muted">Preview appears after Agnes AI returns HTML and the sandbox route is selected.</div>
               )}
             </div>
           </div>

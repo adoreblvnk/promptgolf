@@ -38,7 +38,7 @@ test("POST /api/runs classifies submissions and reports provider state", async (
   expect(naivePayload.providerState).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ name: "Daytona", status: "connected", mode: "live" }),
-      expect.objectContaining({ name: "Moonshot/Kimi", status: "connected", mode: "live" }),
+      expect.objectContaining({ name: "Agnes AI", status: "connected", mode: "live" }),
       expect.objectContaining({ name: "TokenRouter", status: "connected", mode: "live" }),
     ]),
   );

@@ -10,7 +10,6 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@ai-sdk/moonshotai": "^2.0.25",
     "@ai-sdk/openai": "^3.0.71",
     "@base-ui/react": "^1.5.0",
     "@daytonaio/sdk": "^0.187.0",

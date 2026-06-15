@@ -31,7 +31,7 @@ export default async function ChallengePage({ params }: { params: Promise<{ slug
         <div className="mb-5 flex flex-col justify-between gap-3 md:flex-row md:items-end">
           <div>
             <h2 className="text-2xl font-semibold tracking-[-0.02em] text-ink">Write your spec</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">Kimi builds exactly what you write, Daytona serves it, and Playwright runs hidden tests against the real app.</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">Agnes AI builds exactly what you write, Daytona serves it, and Playwright runs hidden tests against the real app.</p>
           </div>
           <Link href="/leaderboard" className="inline-flex min-h-11 items-center gap-2 font-mono text-sm text-ink-soft transition-colors hover:text-ink">Leaderboard <ArrowRight className="size-4" /></Link>
         </div>

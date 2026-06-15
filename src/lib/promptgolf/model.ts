@@ -25,6 +25,6 @@ export function getModelPolicy() {
     separateFrom: "OpenAI provider credits",
     toolCalls: false,
     fallback: "OpenAI provider only for low-credit fallback/tool-call paths; no Google provider is used",
-    liveAdapters: ["DAYTONA_API_KEY", "TOKENROUTER_API_KEY", "MOONSHOT_API_KEY"],
+    liveAdapters: ["DAYTONA_API_KEY", "TOKENROUTER_API_KEY", "AGNES_AI_API_KEY"],
   };
 }

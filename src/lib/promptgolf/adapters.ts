@@ -15,10 +15,10 @@ export type ProviderProbe = ProviderStatus & {
 };
 
 const DAYTONA_BASE_URL = process.env.DAYTONA_API_BASE_URL ?? "https://app.daytona.io/api";
-const MOONSHOT_BASE_URL = process.env.MOONSHOT_API_BASE_URL ?? "https://api.moonshot.ai/v1";
+const AGNES_AI_BASE_URL = process.env.AGNES_AI_BASE_URL ?? "https://apihub.agnes-ai.com/v1";
 const TOKENROUTER_BASE_URL = process.env.TOKENROUTER_API_BASE_URL ?? "https://api.tokenrouter.com/v1";
 const TOKENROUTER_MODEL = process.env.TOKENROUTER_MODEL ?? "openai/gpt-5.4-mini";
-const MOONSHOT_MODEL = process.env.MOONSHOT_MODEL ?? "kimi-k2.6";
+const AGNES_AI_MODEL = process.env.AGNES_AI_MODEL ?? "agnes-2.0-flash";
 const PROVIDER_TIMEOUT_MS = Number(process.env.PROMPTGOLF_PROVIDER_TIMEOUT_MS ?? 12000);
 const PROVIDER_MAX_TOKENS = Number(process.env.PROMPTGOLF_PROVIDER_MAX_TOKENS ?? 80);
 
@@ -190,14 +190,14 @@ export function getTokenRouterAdapterStatus(): ProviderStatus {
   );
 }
 
-export function getMoonshotAdapterStatus(): ProviderStatus {
+export function getAgnesAdapterStatus(): ProviderStatus {
   return configuredStatus(
-    "Moonshot/Kimi",
+    "Agnes AI",
     "live checkout builder + evaluator feedback",
-    "MOONSHOT_API_KEY",
-    "Live Moonshot/Kimi credentials are configured for checkout artifact generation, prompt feedback, and test-generation paths.",
-    "MOONSHOT_API_KEY is not configured, so Kimi-backed evaluation is unavailable.",
-    MOONSHOT_MODEL,
+    "AGNES_AI_API_KEY",
+    "Live Agnes AI credentials are configured for checkout artifact generation, prompt feedback, and test-generation paths.",
+    "AGNES_AI_API_KEY is not configured, so Agnes-backed generation and feedback are unavailable.",
+    AGNES_AI_MODEL,
   );
 }
 
@@ -213,13 +213,13 @@ export function getProviderStatuses(): ProviderStatus[] {
     },
     getDaytonaAdapterStatus(),
     getTokenRouterAdapterStatus(),
-    getMoonshotAdapterStatus(),
+    getAgnesAdapterStatus(),
     {
       name: "OpenAI",
       role: "low-credit fallback",
       mode: "fallback",
       model: "gpt-4o-mini",
-      detail: "Reserved for specific fallback/tool-call paths when Moonshot or TokenRouter is not the right fit.",
+      detail: "Reserved for specific fallback/tool-call paths when Agnes AI or TokenRouter is not the right fit.",
     },
   ];
 }
@@ -284,12 +284,12 @@ export async function probeDaytonaStatus(): Promise<ProviderProbe> {
   }
 }
 
-export async function generateMoonshotPromptFeedback(
+export async function generateAgnesPromptFeedback(
   prompt: string,
   options: { system?: string; userPrompt?: string } = {},
 ): Promise<ProviderProbe> {
-  const base = getMoonshotAdapterStatus();
-  const apiKey = process.env.MOONSHOT_API_KEY?.trim();
+  const base = getAgnesAdapterStatus();
+  const apiKey = process.env.AGNES_AI_API_KEY?.trim();
 
   if (!apiKey) {
     return { ...base, status: "unavailable" };
@@ -300,7 +300,7 @@ export async function generateMoonshotPromptFeedback(
       ...base,
       status: "connected",
       latencyMs: 1,
-      output: "Kimi feedback: this prompt is classified against checkout edge-case coverage.",
+      output: "Agnes feedback: this prompt is classified against checkout edge-case coverage.",
     };
   }
 
@@ -310,13 +310,12 @@ export async function generateMoonshotPromptFeedback(
   try {
     const text = await generateRawOpenAICompatibleText({
       apiKey,
-      baseUrl: MOONSHOT_BASE_URL,
-      model: MOONSHOT_MODEL,
+      baseUrl: AGNES_AI_BASE_URL,
+      model: AGNES_AI_MODEL,
       signal: controller.signal,
-      extraBody: MOONSHOT_MODEL === "kimi-k2.6" ? { temperature: 0.6, thinking: { type: "disabled" } } : undefined,
       system:
         options.system ??
-        "You are PromptGolf's concise Kimi evaluator. Give one sentence of prompt-quality feedback. Do not reveal hidden test answers beyond broad categories.",
+        "You are PromptGolf's concise Agnes AI evaluator. Give one sentence of prompt-quality feedback. Do not reveal hidden test answers beyond broad categories.",
       prompt: options.userPrompt ?? `Evaluate this checkout challenge prompt in one sentence (max 35 words):\n\n${prompt.slice(0, 1600)}`,
     });
 
@@ -332,7 +331,7 @@ export async function generateMoonshotPromptFeedback(
       mode: "degraded",
       status: "degraded",
       latencyMs: elapsedMs(start),
-      detail: `Moonshot/Kimi model call failed: ${sanitizeError(error)}. Feedback is reported as degraded.`,
+      detail: `Agnes AI model call failed: ${sanitizeError(error)}. Feedback is reported as degraded.`,
     };
   } finally {
     clearTimeout(timeout);
@@ -394,7 +393,7 @@ export async function generateTokenRouterPromptFeedback(
 export async function collectRunProviderState(prompt: string): Promise<ProviderProbe[]> {
   return Promise.all([
     probeDaytonaStatus(),
-    generateMoonshotPromptFeedback(prompt),
+    generateAgnesPromptFeedback(prompt),
     generateTokenRouterPromptFeedback(prompt),
   ]);
 }
@@ -424,7 +423,7 @@ export async function generateLiveTestDrafts(specs: Array<{ title?: unknown }>) 
     };
   }
 
-  const moonshot = await generateMoonshotPromptFeedback(
+  const agnes = await generateAgnesPromptFeedback(
     `Create two concise Playwright test titles for these checkout specs. Return plain lines only.\n${source}`,
     {
       system: "You generate concise Playwright test titles for PromptGolf. Return plain lines only; no prose or numbering.",
@@ -432,20 +431,20 @@ export async function generateLiveTestDrafts(specs: Array<{ title?: unknown }>) 
     },
   );
 
-  if (moonshot.status === "connected" && moonshot.output) {
+  if (agnes.status === "connected" && agnes.output) {
     return {
-      provider: moonshot,
-      tests: moonshot.output
+      provider: agnes,
+      tests: agnes.output
         .split(/\n+/)
         .map((line) => line.replace(/^[-*\d.)\s]+/, "").trim())
         .filter(Boolean)
         .slice(0, 4)
-        .map((title, index) => ({ id: `kimi-generated-${index + 1}`, title, code: "// Fallback draft from live Moonshot/Kimi adapter; deterministic Playwright materializes and scores checks separately." })),
+        .map((title, index) => ({ id: `agnes-generated-${index + 1}`, title, code: "// Fallback draft from live Agnes AI adapter; deterministic Playwright materializes and scores checks separately." })),
     };
   }
 
   return {
-    provider: moonshot.status === "connected" ? moonshot : tokenRouter,
+    provider: agnes.status === "connected" ? agnes : tokenRouter,
     tests: [],
   };
 }
