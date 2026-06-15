@@ -75,8 +75,8 @@
         position: relative;
         z-index: 1;
         display: grid;
-        grid-template-rows: auto auto minmax(0, 1fr) auto;
-        gap: 4mm;
+        grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+        gap: 3mm;
         height: 100%;
         padding: 10mm;
       }
@@ -121,7 +121,7 @@
       .hero {
         display: grid;
         grid-template-columns: 1fr;
-        gap: 3mm;
+        gap: 2mm;
       }
 
       h1 {
@@ -152,7 +152,7 @@
       .product-description {
         border-bottom: 1px solid var(--rule-strong);
         background: oklch(0.992 0.004 90 / 0.9);
-        padding: 3mm;
+        padding: 2.4mm;
       }
 
       .product-description strong {
@@ -173,7 +173,7 @@
       .main-proof {
         display: grid;
         grid-template-columns: 1.18fr 0.82fr;
-        gap: 5mm;
+        gap: 4mm;
         min-height: 0;
       }
 
@@ -205,7 +205,7 @@
         gap: 3mm;
         align-items: start;
         border-bottom: 1px solid var(--rule-strong);
-        padding: 3mm;
+        padding: 1.8mm 2.2mm;
       }
 
       .score-top h2 {
@@ -216,7 +216,7 @@
       }
 
       .score-top p {
-        margin: 1.4mm 0 0;
+        margin: 1mm 0 0;
         color: var(--ink-soft);
         font-size: 9.8pt;
         line-height: 1.18;
@@ -241,8 +241,8 @@
 
       .checks {
         display: grid;
-        gap: 1.2mm;
-        padding: 2.4mm 3mm 3mm;
+        gap: 0.9mm;
+        padding: 1.4mm 2.2mm 1.8mm;
         font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         font-size: 9pt;
         line-height: 1.18;
@@ -256,7 +256,7 @@
         border: 1px solid var(--rule);
         border-radius: var(--mock-radius-sm);
         background: var(--card);
-        padding: 1.35mm 1.6mm;
+        padding: 1mm 1.4mm;
       }
 
       .bad .check b {
@@ -292,7 +292,7 @@
         justify-content: space-between;
         gap: 4mm;
         border-bottom: 1px solid var(--rule-strong);
-        padding: 3mm;
+        padding: 2.4mm;
       }
 
       .shot-head h2 {
@@ -313,9 +313,9 @@
       .run-mock {
         display: grid;
         grid-template-rows: auto minmax(0, 1fr);
-        gap: 3mm;
+        gap: 2.2mm;
         min-height: 0;
-        padding: 3mm;
+        padding: 2.4mm;
       }
 
       .result-bar {
@@ -329,7 +329,7 @@
         border: 1px solid var(--rule);
         border-radius: var(--mock-radius-md);
         background: var(--paper);
-        padding: 2.4mm;
+        padding: 1.8mm 2mm;
       }
 
       .result-main span,
@@ -409,10 +409,10 @@
       .checkout-mock {
         display: grid;
         grid-template-columns: 1fr 0.86fr;
-        gap: 3mm;
+        gap: 2.4mm;
         align-items: start;
         min-height: 0;
-        padding: 3mm;
+        padding: 2.4mm;
         border: 1.5px solid var(--pass);
         border-radius: var(--mock-radius-lg);
         background: oklch(0.5 0.13 152 / 0.08);
@@ -423,14 +423,14 @@
         border: 1px solid var(--rule);
         border-radius: var(--mock-radius-lg);
         background: var(--card);
-        padding: 3mm;
+        padding: 2.4mm;
         box-shadow: 0 1px 2px oklch(0.23 0.022 268 / 0.06);
       }
 
       .cart-mock {
         display: grid;
         align-content: start;
-        gap: 2.2mm;
+        gap: 1.6mm;
       }
 
       .cart-mock h3,
@@ -449,7 +449,7 @@
         border: 1px solid var(--rule);
         border-radius: var(--mock-radius-md);
         background: var(--paper);
-        padding: 2.2mm;
+        padding: 1.7mm;
         font-size: 9pt;
         box-shadow: 0 1px 2px oklch(0.23 0.022 268 / 0.04);
       }
@@ -460,7 +460,7 @@
         justify-content: space-between;
         gap: 2mm;
         border-top: 1px solid var(--rule);
-        padding: 1.7mm 0;
+        padding: 1.25mm 0;
         font-size: 9pt;
       }
 
@@ -505,11 +505,11 @@
       }
 
       .mock-button {
-        margin-top: 3mm;
+        margin-top: 2mm;
         background: var(--pass);
         border-radius: var(--mock-radius-md);
         color: var(--paper);
-        padding: 2.4mm;
+        padding: 2mm;
         text-align: center;
         font-size: 9pt;
         font-weight: 800;
@@ -545,7 +545,67 @@
         border: 1px solid var(--rule-strong);
         border-radius: var(--mock-radius-md);
         background: oklch(0.992 0.004 90 / 0.92);
-        padding: 2.4mm;
+        padding: 2mm;
+      }
+
+      .pipeline-diagram {
+        border: 1px solid var(--rule-strong);
+        border-radius: var(--mock-radius-md);
+        background: oklch(0.992 0.004 90 / 0.92);
+        padding: 2.2mm;
+      }
+
+      .pipeline-diagram h2 {
+        margin: 0 0 1.8mm;
+        color: var(--ink);
+        font-size: 13pt;
+        line-height: 1;
+        letter-spacing: -0.02em;
+      }
+
+      .pipeline-steps {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 1.2mm;
+      }
+
+      .pipeline-step {
+        position: relative;
+        border: 1px solid var(--rule);
+        border-radius: var(--mock-radius-sm);
+        background: var(--paper);
+        padding: 1.5mm;
+        min-height: 13mm;
+      }
+
+      .pipeline-step:not(:last-child)::after {
+        content: "→";
+        position: absolute;
+        right: 0.8mm;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--accent);
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 9pt;
+        font-weight: 800;
+        z-index: 2;
+      }
+
+      .pipeline-step b {
+        display: block;
+        color: var(--accent);
+        font-family: "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 9pt;
+        line-height: 1.05;
+        text-transform: uppercase;
+      }
+
+      .pipeline-step span {
+        display: block;
+        margin-top: 0.8mm;
+        color: var(--ink-soft);
+        font-size: 9pt;
+        line-height: 1.05;
       }
 
       .caption h2 {
@@ -621,7 +681,7 @@
         gap: 4mm;
         align-items: end;
         border-top: 1px solid var(--rule-strong);
-        padding-top: 3mm;
+        padding-top: 2.4mm;
       }
 
       .bottom h2 {
@@ -740,7 +800,7 @@
               <div class="score-top">
                 <div>
                   <h2>Expert prompt</h2>
-                  <p>Names edge cases; generated app survives.</p>
+                  <p>Edge cases named; app survives.</p>
                 </div>
                 <div class="score">10/10</div>
               </div>
@@ -761,6 +821,19 @@
                 </div>
               </div>
             </article>
+          </div>
+        </section>
+
+        <section class="pipeline-diagram" aria-label="PromptGolf multimodal judging pipeline">
+          <h2>The full multimodal judging loop</h2>
+          <div class="pipeline-steps">
+            <div class="pipeline-step"><b>Prompt</b><span>User writes the task</span></div>
+            <div class="pipeline-step"><b>Agnes code</b><span>Builds full-stack app</span></div>
+            <div class="pipeline-step"><b>Preview</b><span>Checkout artifact</span></div>
+            <div class="pipeline-step"><b>MCP tools</b><span>Playwright tests</span></div>
+            <div class="pipeline-step"><b>Browser</b><span>Hidden checks run</span></div>
+            <div class="pipeline-step"><b>Vision</b><span>Screenshot UI/UX</span></div>
+            <div class="pipeline-step"><b>Diagnosis</b><span>Prompting + technical</span></div>
           </div>
         </section>
 
