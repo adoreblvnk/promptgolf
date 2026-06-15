@@ -1,4 +1,4 @@
-# Expert Prompt: Mini Checkout + Promo Code Engine
+# Expert Prompt: Full Stack Ecommerce Checkout Web App
 
 Build one polished, self-contained checkout HTML file with inline CSS/JS only. No Markdown or explanations. Optimize for ecommerce correctness, hidden Playwright checks, mobile usability, and accessibility.
 

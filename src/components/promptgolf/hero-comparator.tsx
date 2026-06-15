@@ -35,7 +35,7 @@ export function HeroComparator({ naive, expert }: { naive: ComparatorSide; exper
   return (
     <div className="overflow-hidden rounded-lg border border-rule bg-card shadow-[0_1px_3px_oklch(0.23_0.022_268/0.06)]">
       <div className="flex items-center justify-between border-b border-rule px-5 py-3">
-        <span className="font-mono text-xs font-medium uppercase tracking-[0.12em] text-ink">mini checkout · promo engine</span>
+        <span className="font-mono text-xs font-medium uppercase tracking-[0.12em] text-ink">full-stack checkout · ecommerce</span>
         <span className="font-mono text-xs text-ink-muted">par {total}</span>
       </div>
 

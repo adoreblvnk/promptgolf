@@ -20,7 +20,7 @@ The game is simple: fewer prompts, more hidden tests passed, higher score.”
 
 ## 0:25–0:42 — Show challenge
 
-“Here’s the demo challenge: Mini Checkout + Promo Code Engine.
+“Here’s the demo challenge: Full Stack Ecommerce Checkout Web App.
 
 The public brief is simple: build checkout with cart items, quantities, promo codes and order confirmation.
 
@@ -30,7 +30,7 @@ Sounds easy. Which is exactly how people ship bugs.”
 
 “First, I paste the vague version:
 
-‘Build a checkout page with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation.’
+‘Build a full-stack ecommerce checkout web app with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation.’
 
 That’s one prompt. No edge cases. No product rules. No checkout knowledge.
 

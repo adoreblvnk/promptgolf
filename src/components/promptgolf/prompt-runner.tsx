@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { Textarea } from "@/components/ui/textarea";
 import { startLiveRun } from "@/lib/promptgolf/live-runner";
 
-const starterPrompt = `Build a checkout page with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation.`;
+const starterPrompt = `Build a full-stack ecommerce checkout web app with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation.`;
 
 async function submitPrompt(formData: FormData) {
   "use server";

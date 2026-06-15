@@ -51,9 +51,9 @@ Environment/API key notes:
 
 ## Primary challenge
 
-Use Mini Checkout + Promo Code Engine as the main demo challenge.
+Use Full Stack Ecommerce Checkout Web App as the main demo challenge.
 
-Visible task: build a checkout page with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation.
+Visible task: build a full-stack ecommerce checkout web app with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation.
 
 Hidden tests should check ecommerce/product engineering quirks: cents math, promo normalization, invalid codes, discount floor, shipping threshold order, out-of-stock handling, double-submit prevention, quantity boundaries, loading/error states, and mobile usability.
 

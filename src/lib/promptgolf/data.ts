@@ -109,13 +109,13 @@ function makeStages(): RunStage[] {
 export const challenges: Challenge[] = [
   {
     slug: "mini-checkout-promo-engine",
-    title: "Mini Checkout + Promo Code Engine",
-    subtitle: "A familiar checkout brief where vague specs collapse under ecommerce edge cases.",
+    title: "Full Stack Ecommerce Checkout Web App",
+    subtitle: "A production checkout brief where vague specs collapse under real commerce edge cases.",
     difficulty: "intermediate",
     status: "live",
     estimatedMinutes: 12,
-    publicBrief: "Build a checkout page with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation.",
-    thesis: "The public UI is easy. Hidden tests reveal whether your spec encodes cents math, stock rules, async safety, and mobile checkout behavior.",
+    publicBrief: "Build a full-stack ecommerce checkout web app with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation.",
+    thesis: "The visible checkout is the easy part. Hidden tests reveal whether your spec encodes cents math, stock rules, async safety, and mobile checkout behavior.",
     publicRequirements: [
       "Display cart items with name, price, and quantity.",
       "Allow quantity changes.",
@@ -152,7 +152,7 @@ const seededRunsBase = [
     player: "Naive prompt",
     label: "Naive" as const,
     promptCount: 1,
-    promptExcerpt: "Build a checkout page with cart items, quantity changes, promo code, totals, and confirmation. Make it look nice.",
+    promptExcerpt: "Build an ecommerce checkout web app with cart items, quantity changes, promo code, totals, and confirmation. Make it look nice.",
     hiddenPassed: ["invalid-code", "loading-error", "mobile-a11y"],
     uxScore: 6,
     failureCategories: ["Money math", "Promo normalization", "Inventory safety", "Double-submit", "Quantity bounds"],

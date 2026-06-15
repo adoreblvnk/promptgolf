@@ -152,7 +152,7 @@ async function generateViaOpenAICompatible(input: { apiKey: string; baseUrl: str
           {
             role: "system",
             content:
-              "Return one compact self-contained HTML document only. No markdown. Inline CSS and JS. Public brief: checkout page with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation. Use seed items Canvas tote, Espresso beans, and Stoneware mug. Use semantic HTML with visible labels for Promo code, Subtotal, Discount, Shipping, Tax, Total, and accessible button names such as Increase Canvas tote, Decrease Canvas tote, Increase Stoneware mug, and Decrease Stoneware mug. Keep code concise. Implement exactly what the user's prompt asks. If the prompt omits business edge cases, use straightforward happy-path behavior rather than adding production safeguards.",
+              "Return one compact self-contained HTML document only. No markdown. Inline CSS and JS. Public brief: full-stack ecommerce checkout web app with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation. Use seed items Canvas tote, Espresso beans, and Stoneware mug. Use semantic HTML with visible labels for Promo code, Subtotal, Discount, Shipping, Tax, Total, and accessible button names such as Increase Canvas tote, Decrease Canvas tote, Increase Stoneware mug, and Decrease Stoneware mug. Keep code concise. Implement exactly what the user's prompt asks. If the prompt omits business edge cases, use straightforward happy-path behavior rather than adding production safeguards.",
           },
           { role: "user", content: input.prompt.slice(0, 6000) },
         ],

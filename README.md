@@ -7,7 +7,7 @@ The current demo is being prepared for [Agnes AI Hackathon @ SMU](https://luma.c
 ## Demo flow
 
 1. Open the landing page.
-2. Start the Mini Checkout + Promo Code Engine challenge.
+2. Start the Full Stack Ecommerce Checkout Web App challenge.
 3. Read the public brief and hidden-test teaser.
 4. Submit a prompt from the challenge page; the app starts a live run and redirects to `/live-runs/[id]`.
 5. Inspect the generated checkout preview, hidden-test replay, streaming log, sandbox posture, and TokenRouter/Agnes provider state.

@@ -6,9 +6,9 @@ test("PromptGolf demo flow renders challenge, leaderboard, and expert run", asyn
   await page.goto(baseURL);
   await expect(page.getByRole("heading", { name: "LeetCode for AI-era software specs." })).toBeVisible();
   await expect(page.getByText("Live sandbox API credentials are configured")).toBeVisible();
-  await page.getByRole("link", { name: /Try checkout challenge/i }).click();
+  await page.getByRole("link", { name: /Try the challenge/i }).click();
 
-  await expect(page.getByRole("heading", { name: "Mini Checkout + Promo Code Engine" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Full Stack Ecommerce Checkout Web App" })).toBeVisible();
   await expect(page.getByText("Live execution", { exact: true })).toBeVisible();
   await expect(page.getByText("Integer cents math")).toBeVisible();
 
@@ -30,7 +30,7 @@ test("PromptGolf demo flow renders challenge, leaderboard, and expert run", asyn
 
 test("POST /api/runs classifies submissions and reports provider state", async ({ request }) => {
   const naive = await request.post(`${baseURL}/api/runs`, {
-    data: { prompt: "Build a checkout page with cart items and promo codes." },
+    data: { prompt: "Build an ecommerce checkout web app with cart items and promo codes." },
   });
   await expect(naive).toBeOK();
   const naivePayload = await naive.json();

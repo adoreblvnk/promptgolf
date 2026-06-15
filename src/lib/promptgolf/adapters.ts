@@ -316,7 +316,7 @@ export async function generateAgnesPromptFeedback(
       system:
         options.system ??
         "You are PromptGolf's concise Agnes AI evaluator. Give one sentence of prompt-quality feedback. Do not reveal hidden test answers beyond broad categories.",
-      prompt: options.userPrompt ?? `Evaluate this checkout challenge prompt in one sentence (max 35 words):\n\n${prompt.slice(0, 1600)}`,
+      prompt: options.userPrompt ?? `Evaluate this ecommerce checkout challenge prompt in one sentence (max 35 words):\n\n${prompt.slice(0, 1600)}`,
     });
 
     return {
