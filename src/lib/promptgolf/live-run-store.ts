@@ -72,10 +72,11 @@ const globalKey = "__promptgolf_live_runs__";
 const MAX_RUNS = 100;
 const MAX_EVENTS_PER_RUN = 200;
 const MAX_SUBSCRIBERS_PER_RUN = 25;
+const MAX_TOTAL_SUBSCRIBERS = 100;
 
 export class LiveRunSubscriberLimitError extends Error {
-  constructor() {
-    super("This live run has too many event-stream viewers. Retry shortly.");
+  constructor(message = "This live run has too many event-stream viewers. Retry shortly.") {
+    super(message);
     this.name = "LiveRunSubscriberLimitError";
   }
 }
@@ -163,6 +164,10 @@ export function subscribeToLiveRun(id: string, subscriber: Subscriber) {
   const store = getStore();
   const set = store.subscribers.get(id) ?? new Set<Subscriber>();
   if (set.size >= MAX_SUBSCRIBERS_PER_RUN) throw new LiveRunSubscriberLimitError();
+  const totalSubscribers = Array.from(store.subscribers.values()).reduce((total, subscribers) => total + subscribers.size, 0);
+  if (totalSubscribers >= MAX_TOTAL_SUBSCRIBERS) {
+    throw new LiveRunSubscriberLimitError("The event-stream service is at capacity. Retry shortly.");
+  }
   set.add(subscriber);
   store.subscribers.set(id, set);
   return () => {

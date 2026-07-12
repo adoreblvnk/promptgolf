@@ -30,7 +30,23 @@ describe("process-local live run store bounds", () => {
 
     expect(() => subscribeToLiveRun(run.id, () => undefined)).toThrow(/too many event-stream viewers/i);
     unsubscribers[0]();
-    expect(() => subscribeToLiveRun(run.id, () => undefined)).not.toThrow();
+    const releaseReplacement = subscribeToLiveRun(run.id, () => undefined);
     unsubscribers.slice(1).forEach((unsubscribe) => unsubscribe());
+    releaseReplacement();
+  });
+
+  it("bounds event-stream subscribers across all runs", () => {
+    const unsubscribers = Array.from({ length: 4 }, (_, runIndex) => {
+      const run = createLiveRun({ prompt: `global subscribers ${runIndex}`, challengeSlug: "mini-checkout-promo-engine" });
+      return Array.from({ length: 25 }, () => subscribeToLiveRun(run.id, () => undefined));
+    }).flat();
+    const overflowRun = createLiveRun({ prompt: "global subscriber overflow", challengeSlug: "mini-checkout-promo-engine" });
+
+    expect(() => subscribeToLiveRun(overflowRun.id, () => undefined)).toThrow(/service is at capacity/i);
+    unsubscribers[0]();
+    const releaseReplacement = subscribeToLiveRun(overflowRun.id, () => undefined);
+
+    unsubscribers.slice(1).forEach((unsubscribe) => unsubscribe());
+    releaseReplacement();
   });
 });
