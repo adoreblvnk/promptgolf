@@ -1,24 +1,16 @@
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
 import { Textarea } from "@/components/ui/textarea";
 import { startLiveRun } from "@/lib/promptgolf/live-runner";
+import { MAX_LIVE_PROMPT_LENGTH, validateLiveRunInput } from "@/lib/promptgolf/live-run-input";
 
 const starterPrompt = `Build a full-stack ecommerce checkout web app with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation.`;
 
 async function submitPrompt(formData: FormData) {
   "use server";
 
-  const prompt = String(formData.get("prompt") ?? "");
-  const challengeSlug = String(formData.get("challengeSlug") ?? "mini-checkout-promo-engine");
-
-  if (prompt.trim().length < 12) {
-    redirect(`/challenges/${challengeSlug}?error=prompt-too-short`);
-  }
-
-  const headerList = await headers();
-  const host = headerList.get("x-forwarded-host") ?? headerList.get("host");
-  const proto = headerList.get("x-forwarded-proto") ?? "http";
-  const run = startLiveRun({ prompt, challengeSlug, origin: host ? `${proto}://${host}` : undefined });
+  const input = validateLiveRunInput({ prompt: formData.get("prompt"), challengeSlug: formData.get("challengeSlug") });
+  if (!input.success) redirect(`/challenges?error=${input.code}`);
+  const run = startLiveRun(input.data);
   redirect(`/live-runs/${run.id}`);
 }
 
@@ -32,6 +24,7 @@ export function PromptRunner({ challengeSlug = "mini-checkout-promo-engine" }: {
         className="min-h-56 rounded-md border-rule bg-paper p-5 font-mono text-sm leading-6 text-ink placeholder:text-ink-muted focus-visible:ring-accent/20"
         aria-label="Prompt submission"
         required
+        maxLength={MAX_LIVE_PROMPT_LENGTH}
       />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-3xl text-sm leading-6 text-ink-soft">
