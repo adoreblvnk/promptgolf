@@ -3,10 +3,15 @@ import { startLiveRun } from "@/lib/promptgolf/live-runner";
 import { validateLiveRunInput } from "@/lib/promptgolf/live-run-input";
 import { RunQueueFullError } from "@/lib/promptgolf/run-scheduler";
 import { readBoundedJson } from "@/lib/promptgolf/request-json";
+import { consumeRateLimit, rateLimitResponse, requestClientKey } from "@/lib/promptgolf/rate-limit";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  const globalLimit = consumeRateLimit("live-run:global", { limit: 50, windowMs: 60_000 });
+  if (!globalLimit.allowed) return rateLimitResponse(globalLimit);
+  const rateLimit = consumeRateLimit(`live-run:${requestClientKey(request)}`, { limit: 5, windowMs: 60_000 });
+  if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
   const body = await readBoundedJson(request);
   if (!body.success) return NextResponse.json({ error: body.message, code: "invalid-request-body" }, { status: body.status });
   const input = validateLiveRunInput(body.data);
