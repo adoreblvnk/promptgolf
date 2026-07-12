@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { generateLiveTestDrafts } from "@/lib/promptgolf";
 import { getModelPolicy } from "@/lib/promptgolf/model";
 import { validateGenerateTestsInput } from "@/lib/promptgolf/generate-tests-input";
+import { readBoundedJson } from "@/lib/promptgolf/request-json";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => ({}));
-  const input = validateGenerateTestsInput(body);
+  const body = await readBoundedJson(request);
+  if (!body.success) return NextResponse.json({ error: body.message, code: "invalid-request-body" }, { status: body.status });
+  const input = validateGenerateTestsInput(body.data);
   if (!input.success) {
     return NextResponse.json({ error: input.message }, { status: 400 });
   }
