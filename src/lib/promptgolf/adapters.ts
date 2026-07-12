@@ -1,3 +1,5 @@
+import { redactSecrets } from "./redact-secrets";
+
 export type ProviderMode = "default" | "live" | "unavailable" | "degraded" | "fallback";
 
 export type ProviderStatus = {
@@ -41,10 +43,7 @@ function elapsedMs(start: number) {
 
 function sanitizeError(error: unknown) {
   const raw = error instanceof Error ? error.message : String(error);
-  return raw
-    .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer [redacted]")
-    .replace(/sk-[A-Za-z0-9_-]+/gi, "[redacted-key]")
-    .slice(0, 240);
+  return redactSecrets(raw, 240);
 }
 
 function abortAfter(ms: number) {
