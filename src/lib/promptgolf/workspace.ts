@@ -1,5 +1,23 @@
 import { z } from "zod";
 
+const MAX_FILE_BYTES = 512 * 1024;
+const MAX_WORKSPACE_BYTES = 2 * 1024 * 1024;
+
+const command = z.string().min(1).max(500).refine(
+  (value) => !/[\0\r\n]/.test(value),
+  "Workspace commands must be single-line shell commands without control characters.",
+);
+
+const fileContent = z.string().refine(
+  (value) => Buffer.byteLength(value, "utf8") <= MAX_FILE_BYTES,
+  `Workspace files cannot exceed ${MAX_FILE_BYTES} UTF-8 bytes.`,
+);
+
+const healthPath = z.string().min(1).max(200).regex(
+  /^\/(?:[A-Za-z0-9._~!$&()*+,;=:@/-]|%[0-9A-Fa-f]{2})*$/,
+  "Health paths must be URL-safe absolute paths without query strings, fragments, quotes, or whitespace.",
+);
+
 const relativePath = z.string().min(1).max(240).superRefine((value, context) => {
   const segments = value.split("/");
   const invalid =
@@ -21,9 +39,9 @@ export const workspaceManifestSchema = z.object({
   framework: z.string().min(1),
   language: z.string().min(1),
   packageManager: z.enum(["npm", "pnpm", "yarn", "bun", "pip", "poetry", "composer"]),
-  files: z.array(z.object({ path: relativePath, content: z.string() })).min(2).max(200),
-  commands: z.object({ install: z.string().min(1).optional(), build: z.string().min(1), start: z.string().min(1) }),
-  runtime: z.object({ port: z.number().int().min(1024).max(65535), healthPath: z.string().startsWith("/") }),
+  files: z.array(z.object({ path: relativePath, content: fileContent })).min(2).max(200),
+  commands: z.object({ install: command.optional(), build: command, start: command }),
+  runtime: z.object({ port: z.number().int().min(1024).max(65535), healthPath }),
   entrypoints: z.object({ preview: relativePath, manifest: relativePath }),
 });
 
@@ -37,6 +55,8 @@ export interface ProjectBuilder {
 
 export function parseWorkspace(input: unknown): WorkspaceManifest {
   const workspace = workspaceManifestSchema.parse(input);
+  const totalBytes = workspace.files.reduce((total, file) => total + Buffer.byteLength(file.content, "utf8"), 0);
+  if (totalBytes > MAX_WORKSPACE_BYTES) throw new Error(`Workspace contents cannot exceed ${MAX_WORKSPACE_BYTES} UTF-8 bytes.`);
   const paths = new Set<string>();
   for (const file of workspace.files) {
     if (paths.has(file.path)) throw new Error(`Duplicate workspace path: ${file.path}`);
