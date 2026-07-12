@@ -1,6 +1,20 @@
 import { z } from "zod";
 
-const relativePath = z.string().min(1).refine((value) => !value.startsWith("/") && !value.split("/").includes(".."), "Workspace paths must be relative and cannot traverse parents.");
+const relativePath = z.string().min(1).max(240).superRefine((value, context) => {
+  const segments = value.split("/");
+  const invalid =
+    value.startsWith("/") ||
+    value.includes("\\") ||
+    value.includes("\0") ||
+    /^[a-z]:/i.test(value) ||
+    segments.some((segment) => segment === "" || segment === "." || segment === "..");
+  if (invalid) {
+    context.addIssue({
+      code: "custom",
+      message: "Workspace paths must be normalized portable relative paths and cannot traverse parents.",
+    });
+  }
+});
 
 export const workspaceManifestSchema = z.object({
   schemaVersion: z.literal(1),

@@ -45,6 +45,25 @@ describe("workspace and artifact adapter", () => {
     expect(() => parseWorkspace({ ...fixture, files: [...fixture.files, { path: "../secret", content: "x" }] })).toThrow();
     expect(() => parseWorkspace({ ...fixture, files: [...fixture.files, fixture.files[0]] })).toThrow(/Duplicate/);
   });
+  it.each([
+    "/etc/passwd",
+    "C:/Windows/system.ini",
+    "..\\secret",
+    "src\\index.html",
+    "src//index.html",
+    "./package.json",
+    "src/./index.html",
+    "src/../secret",
+    "bad\0name",
+  ])("rejects non-portable or unsafe workspace path %j", (unsafePath) => {
+    const fixture = deterministicCheckoutWorkspace();
+    expect(() => parseWorkspace({ ...fixture, files: [...fixture.files, { path: unsafePath, content: "x" }] })).toThrow(/normalized portable relative paths/);
+  });
+  it("requires both entrypoints to resolve to included safe files", () => {
+    const fixture = deterministicCheckoutWorkspace();
+    expect(() => parseWorkspace({ ...fixture, entrypoints: { ...fixture.entrypoints, preview: "dist/index.html" } })).toThrow(/entrypoints/);
+    expect(() => parseWorkspace({ ...fixture, entrypoints: { ...fixture.entrypoints, manifest: "../package.json" } })).toThrow(/normalized portable relative paths/);
+  });
   it("discovers semantic canonical capabilities without source fingerprints", () => {
     const artifact = adaptWorkspace(deterministicCheckoutWorkspace());
     expect(artifact.capabilities.map((item) => item.key)).toEqual(expect.arrayContaining(["artifact.build", "artifact.start", "checkout.promo.input", "checkout.submit", "checkout.total"]));
