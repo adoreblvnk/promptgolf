@@ -119,6 +119,12 @@ export function getLiveRun(id: string) {
   return getStore().runs.get(id);
 }
 
+export function deleteLiveRun(id: string) {
+  const store = getStore();
+  store.subscribers.delete(id);
+  return store.runs.delete(id);
+}
+
 export function updateLiveRun(id: string, patch: Partial<Omit<LiveRun, "id" | "events">>) {
   const run = getLiveRun(id);
   if (!run) return undefined;
