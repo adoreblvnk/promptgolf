@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fetchAllowedPreview, isAllowedPreviewTarget } from "./preview-proxy";
+import { fetchAllowedPreview, isAllowedPreviewTarget, readPreviewBody } from "./preview-proxy";
 
 const requestUrl = new URL("https://promptgolf.run/api/live-runs/123/preview");
 
@@ -41,5 +41,28 @@ describe("preview proxy target policy", () => {
     const response = await fetchAllowedPreview(new URL("https://workspace.proxy.daytona.works/start"), requestUrl, fetcher);
     expect(await response.text()).toBe("ok");
     expect(String(fetcher.mock.calls[1]?.[0])).toBe("https://workspace.proxy.daytona.works/ready");
+  });
+});
+
+describe("preview proxy response limits", () => {
+  it("reads a response within the configured byte limit", async () => {
+    const body = await readPreviewBody(new Response("checkout ready"), 32);
+    expect(new TextDecoder().decode(body)).toBe("checkout ready");
+  });
+
+  it("rejects an oversized declared content length before reading", async () => {
+    const response = new Response("small", { headers: { "content-length": "100" } });
+    await expect(readPreviewBody(response, 10)).rejects.toThrow("size limit");
+  });
+
+  it("rejects a chunked response that grows beyond the limit", async () => {
+    const response = new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(6));
+        controller.enqueue(new Uint8Array(6));
+        controller.close();
+      },
+    }));
+    await expect(readPreviewBody(response, 10)).rejects.toThrow("size limit");
   });
 });

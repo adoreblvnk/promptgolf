@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getLiveRun } from "@/lib/promptgolf/live-run-store";
-import { fetchAllowedPreview, isAllowedPreviewTarget } from "@/lib/promptgolf/preview-proxy";
+import { fetchAllowedPreview, isAllowedPreviewTarget, readPreviewBody } from "@/lib/promptgolf/preview-proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,14 +31,22 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: `Preview fetch failed: ${detail}` }, { status });
   }
 
-  const body = await upstream.arrayBuffer();
+  let body: Uint8Array;
+  try {
+    body = await readPreviewBody(upstream);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "response body was unavailable";
+    return NextResponse.json({ error: `Preview fetch failed: ${detail}` }, { status: 502 });
+  }
   const contentType = upstream.headers.get("content-type") ?? "text/html; charset=utf-8";
 
-  return new NextResponse(body, {
+  return new NextResponse(Buffer.from(body), {
     status: upstream.status,
     headers: {
       "content-type": contentType,
       "cache-control": "no-store",
+      "content-security-policy": "sandbox allow-scripts allow-forms allow-modals; default-src 'self' 'unsafe-inline' data: blob:; connect-src 'none'; frame-ancestors 'self';",
+      "x-content-type-options": "nosniff",
     },
   });
 }
