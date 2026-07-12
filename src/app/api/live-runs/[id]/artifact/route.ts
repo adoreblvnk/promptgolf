@@ -15,7 +15,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",
-      "Content-Security-Policy": "default-src 'self' 'unsafe-inline' data:; frame-ancestors 'self';",
+      "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-modals; default-src 'self' 'unsafe-inline' data: blob:; connect-src 'none'; frame-ancestors 'self';",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }

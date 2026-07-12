@@ -1,4 +1,5 @@
 const MAX_PREVIEW_REDIRECTS = 3;
+export const MAX_PREVIEW_RESPONSE_BYTES = 5 * 1024 * 1024;
 
 function isPrivateHostname(hostname: string) {
   const lower = hostname.toLowerCase().replace(/^\[|\]$/g, "");
@@ -45,4 +46,40 @@ export async function fetchAllowedPreview(target: URL, requestUrl: URL, fetcher:
     current = new URL(location, current);
   }
   throw new Error("Preview exceeded the redirect limit.");
+}
+
+/** Reads an untrusted preview response without buffering an unbounded upstream body. */
+export async function readPreviewBody(response: Response, maxBytes = MAX_PREVIEW_RESPONSE_BYTES) {
+  const declaredLength = response.headers.get("content-length");
+  if (declaredLength && Number(declaredLength) > maxBytes) {
+    await response.body?.cancel();
+    throw new Error("Preview response exceeded the size limit.");
+  }
+
+  if (!response.body) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new Error("Preview response exceeded the size limit.");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
 }
