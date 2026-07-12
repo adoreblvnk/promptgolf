@@ -9,6 +9,7 @@ import { adaptWorkspace } from "./artifact-adapter";
 import { parseWorkspace, workspaceFile, workspaceSummary, type WorkspaceManifest } from "./workspace";
 import { appendLiveRunEvent, createLiveRun, getLiveRun, sanitizeLog, updateLiveRun, type LiveRunCategoryScore, type LiveRunSkillDiagnosis, type LiveRunTestCategory, type LiveRunTestResult } from "./live-run-store";
 import { captureVisualEvidence, evaluateSpecsWithPlaywright } from "./playwright-evaluator";
+import { RunScheduler } from "./run-scheduler";
 
 const AGNES_AI_BASE_URL = process.env.AGNES_AI_BASE_URL ?? "https://apihub.agnes-ai.com/v1";
 const AGNES_AI_MODEL = process.env.AGNES_AI_MODEL ?? "agnes-2.0-flash";
@@ -19,6 +20,8 @@ const EVALUATION_MAX_TOKENS = Number(process.env.PROMPTGOLF_LIVE_EVALUATION_MAX_
 const DAYTONA_CREATE_TIMEOUT_SECONDS = Number(process.env.PROMPTGOLF_DAYTONA_CREATE_TIMEOUT_SECONDS ?? 30);
 const DAYTONA_STEP_TIMEOUT_MS = Number(process.env.PROMPTGOLF_DAYTONA_STEP_TIMEOUT_MS ?? 30000);
 const ALLOW_LOCAL_SANDBOX_FALLBACK = process.env.PROMPTGOLF_ALLOW_LOCAL_SANDBOX_FALLBACK === "1";
+const configuredConcurrency = Number(process.env.PROMPTGOLF_LIVE_RUN_CONCURRENCY ?? 2);
+const liveRunScheduler = new RunScheduler(Number.isInteger(configuredConcurrency) && configuredConcurrency > 0 ? configuredConcurrency : 2);
 
 const CATEGORY_LABELS: Record<LiveRunTestCategory, string> = {
   functional: "Functional",
@@ -550,7 +553,11 @@ async function runPlaywright(id: string, url: string) {
 
 export function startLiveRun(input: { prompt: string; challengeSlug?: string; origin?: string }) {
   const run = createLiveRun({ prompt: input.prompt, challengeSlug: input.challengeSlug ?? "mini-checkout-promo-engine" });
-  void executeLiveRun(run.id, absoluteOrigin(input.origin));
+  liveRunScheduler.enqueue(() => executeLiveRun(run.id, absoluteOrigin(input.origin)));
+  const queue = liveRunScheduler.snapshot();
+  if (queue.queued > 0) {
+    appendLiveRunEvent(run.id, "queued", "info", `Run is waiting for a provider slot (${queue.queued} queued).`);
+  }
   return run;
 }
 
