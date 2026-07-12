@@ -63,7 +63,33 @@ export function assertPositiveEvaluatorPolicy(input: unknown): void {
 }
 
 export function aggregatePositiveEvidence(specs: EvalSpec[], evidence: CapabilityEvidence[]) {
-  const bySpec = new Map(evidence.map((item) => [item.specId, item]));
+  const specById = new Map<string, EvalSpec>();
+  for (const spec of specs) {
+    parseEvalSpec(spec);
+    if (specById.has(spec.id)) throw new Error(`Duplicate EvalSpec id '${spec.id}'.`);
+    specById.set(spec.id, spec);
+  }
+
+  const bySpec = new Map<string, CapabilityEvidence>();
+  for (const item of evidence) {
+    const spec = specById.get(item.specId);
+    if (!spec) throw new Error(`Evidence references unknown EvalSpec '${item.specId}'.`);
+    if (bySpec.has(item.specId)) throw new Error(`Duplicate evidence for EvalSpec '${item.specId}'.`);
+    if (item.requirementId !== spec.requirementId || item.pillar !== spec.pillar) {
+      throw new Error(`Evidence for '${item.specId}' does not match its requirement and pillar.`);
+    }
+    const allowedProtocolKeys = new Set(spec.observables.map((observable) => observable.protocolKey));
+    if (item.observations.some((observation) => !allowedProtocolKeys.has(observation.protocolKey))) {
+      throw new Error(`Evidence for '${item.specId}' contains an undeclared observable.`);
+    }
+    if (item.status !== "unobserved" && item.observations.length === 0) {
+      throw new Error(`Positive evidence for '${item.specId}' requires an observation.`);
+    }
+    if (item.status === "unobserved" && item.observations.length > 0) {
+      throw new Error(`Unobserved evidence for '${item.specId}' cannot contain observations.`);
+    }
+    bySpec.set(item.specId, item);
+  }
   const requirements = specs.map((spec) => ({ spec, evidence: bySpec.get(spec.id) }));
   const earned = requirements.reduce((total, item) => total + (item.evidence?.status === "satisfied" ? 1 : item.evidence?.status === "partial" ? 0.5 : 0), 0);
   return {
