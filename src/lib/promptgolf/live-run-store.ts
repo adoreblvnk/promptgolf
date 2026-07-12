@@ -1,5 +1,6 @@
 import type { ProviderProbe } from "./adapters";
 import type { WorkspaceManifest } from "./workspace";
+import { redactSecrets } from "./redact-secrets";
 
 export type LiveRunStatus = "queued" | "running" | "completed" | "failed";
 export type LiveRunStage = "queued" | "generate" | "sandbox" | "test" | "score" | "completed" | "failed";
@@ -171,11 +172,7 @@ export function subscribeToLiveRun(id: string, subscriber: Subscriber) {
 }
 
 export function sanitizeLog(input: string) {
-  return input
-    .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer [redacted]")
-    .replace(/sk-[A-Za-z0-9_-]+/gi, "[redacted-key]")
-    .replace(/(AGNES_AI_API_KEY|TOKENROUTER_API_KEY|DAYTONA_API_KEY)=\S+/gi, "$1=[redacted]")
-    .slice(0, 1000);
+  return redactSecrets(input);
 }
 
 // Demo note: this store is intentionally process-local and non-persistent.
