@@ -10,6 +10,7 @@ import { parseWorkspace, workspaceFile, workspaceSummary, type WorkspaceManifest
 import { appendLiveRunEvent, createLiveRun, deleteLiveRun, getLiveRun, sanitizeLog, updateLiveRun, type LiveRunCategoryScore, type LiveRunSkillDiagnosis, type LiveRunTestCategory, type LiveRunTestResult } from "./live-run-store";
 import { captureVisualEvidence, evaluateSpecsWithPlaywright } from "./playwright-evaluator";
 import { RunScheduler } from "./run-scheduler";
+import { MAX_PROVIDER_RESPONSE_BYTES, readBoundedResponseText } from "./provider-response";
 
 const AGNES_AI_BASE_URL = process.env.AGNES_AI_BASE_URL ?? "https://apihub.agnes-ai.com/v1";
 const AGNES_AI_MODEL = process.env.AGNES_AI_MODEL ?? "agnes-2.0-flash";
@@ -151,11 +152,17 @@ async function readStreamedChatCompletion(response: Response) {
   const decoder = new TextDecoder();
   let buffer = "";
   let text = "";
+  let receivedBytes = 0;
 
   try {
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
+      receivedBytes += value.byteLength;
+      if (receivedBytes > MAX_PROVIDER_RESPONSE_BYTES) {
+        await reader.cancel();
+        throw new Error("Provider response exceeded the size limit.");
+      }
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() ?? "";
@@ -212,7 +219,7 @@ async function generateViaOpenAICompatible(input: { credential: string; baseUrl:
       signal: controller.signal,
     });
     if (!response.ok) {
-      const raw = await response.text();
+      const raw = await readBoundedResponseText(response);
       throw new Error(`${input.provider} HTTP ${response.status}: ${raw.slice(0, 220)}`);
     }
     const text = useStreaming ? await readStreamedChatCompletion(response) : extractChatContent(await response.json());
@@ -267,7 +274,7 @@ async function generateAgnesJson(input: { system: string; content: unknown; maxT
       signal: controller.signal,
     });
 
-    const raw = await response.text();
+    const raw = await readBoundedResponseText(response);
     let data: unknown;
     try {
       data = raw ? JSON.parse(raw) : undefined;
