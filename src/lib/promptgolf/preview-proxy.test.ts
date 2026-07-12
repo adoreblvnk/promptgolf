@@ -42,6 +42,16 @@ describe("preview proxy target policy", () => {
     expect(await response.text()).toBe("ok");
     expect(String(fetcher.mock.calls[1]?.[0])).toBe("https://workspace.proxy.daytona.works/ready");
   });
+
+  it("bounds upstream fetches with an abort signal", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (_input, init) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      return new Response("ok", { status: 200 });
+    });
+
+    await fetchAllowedPreview(new URL("https://workspace.proxy.daytona.works"), requestUrl, fetcher);
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
 });
 
 describe("preview proxy response limits", () => {

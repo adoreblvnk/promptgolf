@@ -1,5 +1,6 @@
 const MAX_PREVIEW_REDIRECTS = 3;
 export const MAX_PREVIEW_RESPONSE_BYTES = 5 * 1024 * 1024;
+export const PREVIEW_FETCH_TIMEOUT_MS = 15_000;
 
 function isPrivateHostname(hostname: string) {
   const lower = hostname.toLowerCase().replace(/^\[|\]$/g, "");
@@ -30,7 +31,12 @@ export function isAllowedPreviewTarget(target: URL, requestUrl: URL) {
 }
 
 /** Fetches a stored preview URL without allowing an approved host to redirect the proxy elsewhere. */
-export async function fetchAllowedPreview(target: URL, requestUrl: URL, fetcher: typeof fetch = fetch) {
+export async function fetchAllowedPreview(
+  target: URL,
+  requestUrl: URL,
+  fetcher: typeof fetch = fetch,
+  signal: AbortSignal = AbortSignal.timeout(PREVIEW_FETCH_TIMEOUT_MS),
+) {
   let current = target;
   for (let redirectCount = 0; redirectCount <= MAX_PREVIEW_REDIRECTS; redirectCount += 1) {
     if (!isAllowedPreviewTarget(current, requestUrl)) throw new Error("Preview host is not allowed for same-origin proxying.");
@@ -38,6 +44,7 @@ export async function fetchAllowedPreview(target: URL, requestUrl: URL, fetcher:
       cache: "no-store",
       redirect: "manual",
       headers: { "X-Daytona-Skip-Preview-Warning": "true", Accept: "text/html" },
+      signal,
     });
     if (![301, 302, 303, 307, 308].includes(response.status)) return response;
     const location = response.headers.get("location");
