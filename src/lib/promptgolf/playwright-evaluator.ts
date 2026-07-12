@@ -12,9 +12,22 @@ function pattern(source: string) {
   return new RegExp(source, "i");
 }
 
-function moneyToCents(value: string) {
-  const cleaned = value.replace(/[^0-9.-]/g, "");
-  return Math.round(Number(cleaned) * 100);
+export function moneyToCents(value: string) {
+  const normalized = value.trim();
+  const negativeByParentheses = /^\(.*\)$/.test(normalized);
+  const searchable = normalized.replace(/[$€£¥]/g, "");
+  const matches = searchable.match(/-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?/g);
+  if (!matches || matches.length !== 1) {
+    throw new Error(`Expected one monetary amount, got '${value.slice(0, 80)}'.`);
+  }
+
+  const amount = matches[0].replace(/,/g, "");
+  const [whole, fraction = ""] = amount.replace(/^-/, "").split(".");
+  const cents = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+  if (!Number.isSafeInteger(cents)) {
+    throw new Error(`Monetary amount is outside the supported cents range: '${value.slice(0, 80)}'.`);
+  }
+  return (amount.startsWith("-") || negativeByParentheses ? -1 : 1) * cents;
 }
 
 const checkoutTerms: Record<string, { labels?: string[]; testIds?: string[]; css?: string[]; text?: string }> = {
