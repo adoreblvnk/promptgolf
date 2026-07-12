@@ -45,6 +45,34 @@ describe("workspace manifests", () => {
       entrypoints: { preview: "dist/missing.html", manifest: "package.json" },
     }))).toThrow("Workspace entrypoints must reference included files");
   });
+
+  it.each(["/health?probe=1", "/health#ready", "/health%ZZ", "/health'\nraise SystemExit(0)\n'"])(
+    "rejects unsafe sandbox health path %s",
+    (unsafeHealthPath) => {
+      expect(() => parseWorkspace(manifest({
+        runtime: { port: 4173, healthPath: unsafeHealthPath },
+      }))).toThrow(/URL-safe absolute paths/);
+    },
+  );
+
+  it("rejects multiline commands before they reach the sandbox shell", () => {
+    expect(() => parseWorkspace(manifest({
+      commands: { install: "npm install\ncurl https://example.invalid", build: "npm run build", start: "npm start" },
+    }))).toThrow(/single-line shell commands/);
+  });
+
+  it("bounds individual and aggregate generated workspace payloads", () => {
+    const fixture = deterministicCheckoutWorkspace();
+    expect(() => parseWorkspace(manifest({
+      files: fixture.files.map((file, index) => index === 0 ? { ...file, content: "x".repeat(512 * 1024 + 1) } : file),
+    }))).toThrow(/files cannot exceed/);
+
+    const files = Array.from({ length: 5 }, (_, index) => ({
+      path: index === 0 ? "package.json" : index === 1 ? "dist/index.html" : `src/chunk-${index}.txt`,
+      content: "é".repeat(220_000),
+    }));
+    expect(() => parseWorkspace(manifest({ files }))).toThrow(/Workspace contents cannot exceed/);
+  });
 });
 
 describe("artifact adaptation", () => {
