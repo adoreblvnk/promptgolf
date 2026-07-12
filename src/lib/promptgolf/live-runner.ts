@@ -7,7 +7,7 @@ import { CHECKOUT_REQUIRED_CONTRACT_MARKERS, checkoutEvaluatorSpecs } from "./ev
 import { deterministicCheckoutWorkspace } from "./live-run-fixture";
 import { adaptWorkspace } from "./artifact-adapter";
 import { parseWorkspace, workspaceFile, workspaceSummary, type WorkspaceManifest } from "./workspace";
-import { appendLiveRunEvent, createLiveRun, getLiveRun, sanitizeLog, updateLiveRun, type LiveRunCategoryScore, type LiveRunSkillDiagnosis, type LiveRunTestCategory, type LiveRunTestResult } from "./live-run-store";
+import { appendLiveRunEvent, createLiveRun, deleteLiveRun, getLiveRun, sanitizeLog, updateLiveRun, type LiveRunCategoryScore, type LiveRunSkillDiagnosis, type LiveRunTestCategory, type LiveRunTestResult } from "./live-run-store";
 import { captureVisualEvidence, evaluateSpecsWithPlaywright } from "./playwright-evaluator";
 import { RunScheduler } from "./run-scheduler";
 
@@ -21,7 +21,11 @@ const DAYTONA_CREATE_TIMEOUT_SECONDS = Number(process.env.PROMPTGOLF_DAYTONA_CRE
 const DAYTONA_STEP_TIMEOUT_MS = Number(process.env.PROMPTGOLF_DAYTONA_STEP_TIMEOUT_MS ?? 30000);
 const ALLOW_LOCAL_SANDBOX_FALLBACK = process.env.PROMPTGOLF_ALLOW_LOCAL_SANDBOX_FALLBACK === "1";
 const configuredConcurrency = Number(process.env.PROMPTGOLF_LIVE_RUN_CONCURRENCY ?? 2);
-const liveRunScheduler = new RunScheduler(Number.isInteger(configuredConcurrency) && configuredConcurrency > 0 ? configuredConcurrency : 2);
+const configuredQueueCapacity = Number(process.env.PROMPTGOLF_LIVE_RUN_QUEUE_CAPACITY ?? 20);
+const liveRunScheduler = new RunScheduler(
+  Number.isInteger(configuredConcurrency) && configuredConcurrency > 0 ? configuredConcurrency : 2,
+  Number.isInteger(configuredQueueCapacity) && configuredQueueCapacity >= 0 ? configuredQueueCapacity : 20,
+);
 
 const CATEGORY_LABELS: Record<LiveRunTestCategory, string> = {
   functional: "Functional",
@@ -553,7 +557,12 @@ async function runPlaywright(id: string, url: string) {
 
 export function startLiveRun(input: { prompt: string; challengeSlug?: string; origin?: string }) {
   const run = createLiveRun({ prompt: input.prompt, challengeSlug: input.challengeSlug ?? "mini-checkout-promo-engine" });
-  liveRunScheduler.enqueue(() => executeLiveRun(run.id, absoluteOrigin(input.origin)));
+  try {
+    liveRunScheduler.enqueue(() => executeLiveRun(run.id, absoluteOrigin(input.origin)));
+  } catch (error) {
+    deleteLiveRun(run.id);
+    throw error;
+  }
   const queue = liveRunScheduler.snapshot();
   if (queue.queued > 0) {
     appendLiveRunEvent(run.id, "queued", "info", `Run is waiting for a provider slot (${queue.queued} queued).`);

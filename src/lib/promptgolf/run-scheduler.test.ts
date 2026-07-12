@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RunScheduler } from "./run-scheduler";
+import { RunQueueFullError, RunScheduler } from "./run-scheduler";
 
 function deferred() {
   let resolve!: () => void;
@@ -58,5 +58,18 @@ describe("RunScheduler", () => {
 
   it("rejects invalid concurrency", () => {
     expect(() => new RunScheduler(0)).toThrow("positive integer");
+    expect(() => new RunScheduler(1, -1)).toThrow("non-negative integer");
+  });
+
+  it("rejects excess work instead of growing an unbounded provider queue", () => {
+    const scheduler = new RunScheduler(1, 1);
+    const gate = deferred();
+
+    scheduler.enqueue(() => gate.promise);
+    scheduler.enqueue(async () => undefined);
+
+    expect(() => scheduler.enqueue(async () => undefined)).toThrow(RunQueueFullError);
+    expect(scheduler.snapshot()).toEqual({ active: 1, queued: 1 });
+    gate.resolve();
   });
 });
