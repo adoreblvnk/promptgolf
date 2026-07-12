@@ -1,29 +1,9 @@
 import { NextResponse } from "next/server";
 import { getLiveRun } from "@/lib/promptgolf/live-run-store";
+import { fetchAllowedPreview, isAllowedPreviewTarget } from "@/lib/promptgolf/preview-proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function isPrivateHostname(hostname: string) {
-  const lower = hostname.toLowerCase();
-  if (lower === "localhost" || lower.endsWith(".localhost")) return false;
-  if (/^(10|127)\./.test(lower)) return true;
-  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(lower)) return true;
-  if (/^192\.168\./.test(lower)) return true;
-  if (lower === "0.0.0.0" || lower === "::1") return true;
-  return false;
-}
-
-function isAllowedPreviewTarget(target: URL, requestUrl: URL) {
-  if (!["http:", "https:"].includes(target.protocol)) return false;
-  if (target.origin === requestUrl.origin) return true;
-  if (isPrivateHostname(target.hostname)) return false;
-  if (/(^|\.)daytonaproxy\d*\.net$/.test(target.hostname)) return true;
-  if (/(^|\.)proxy\.daytona\.works$/.test(target.hostname)) return true;
-  if (/(^|\.)daytona\.works$/.test(target.hostname)) return true;
-  if (/(^|\.)daytona\.io$/.test(target.hostname)) return true;
-  return false;
-}
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -44,14 +24,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   let upstream: Response;
   try {
-    upstream = await fetch(target, {
-      cache: "no-store",
-      redirect: "follow",
-      headers: { "X-Daytona-Skip-Preview-Warning": "true", Accept: "text/html" },
-    });
+    upstream = await fetchAllowedPreview(target, requestUrl);
   } catch (error) {
     const detail = error instanceof Error ? error.message.slice(0, 160) : "fetch failed";
-    return NextResponse.json({ error: `Preview fetch failed: ${detail}` }, { status: 502 });
+    const status = detail.includes("not allowed") || detail.includes("redirect") ? 400 : 502;
+    return NextResponse.json({ error: `Preview fetch failed: ${detail}` }, { status });
   }
 
   const body = await upstream.arrayBuffer();
