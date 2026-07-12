@@ -28,9 +28,23 @@ describe("positive evidence aggregation", () => {
     const second = { ...behavior, id: "checkout-submit", requirementId: "checkout.submit" };
     const result = aggregatePositiveEvidence([behavior, second], [
       { specId: behavior.id, requirementId: behavior.requirementId, pillar: "behavior", status: "satisfied", observations: [{ protocolKey: "checkout.discount", summary: "observed", source: "browser" }] },
-      { specId: second.id, requirementId: second.requirementId, pillar: "behavior", status: "partial", observations: [] },
+      { specId: second.id, requirementId: second.requirementId, pillar: "behavior", status: "partial", observations: [{ protocolKey: "checkout.discount", summary: "control observed but outcome incomplete", source: "browser" }] },
     ]);
     expect(result).toMatchObject({ earned: 1.5, possible: 2, score: 75 });
+  });
+
+  it("rejects evidence that is not traceable to its declared positive observable", () => {
+    const valid = { specId: behavior.id, requirementId: behavior.requirementId, pillar: "behavior" as const, status: "satisfied" as const, observations: [{ protocolKey: "checkout.discount", summary: "observed", source: "browser" as const }] };
+    expect(() => aggregatePositiveEvidence([behavior], [{ ...valid, requirementId: "other" }])).toThrow(/does not match/);
+    expect(() => aggregatePositiveEvidence([behavior], [{ ...valid, observations: [{ ...valid.observations[0], protocolKey: "undeclared.output" }] }])).toThrow(/undeclared observable/);
+    expect(() => aggregatePositiveEvidence([behavior], [{ ...valid, observations: [] }])).toThrow(/requires an observation/);
+  });
+
+  it("rejects ambiguous and orphaned evidence records", () => {
+    const valid = { specId: behavior.id, requirementId: behavior.requirementId, pillar: "behavior" as const, status: "satisfied" as const, observations: [{ protocolKey: "checkout.discount", summary: "observed", source: "browser" as const }] };
+    expect(() => aggregatePositiveEvidence([behavior], [valid, valid])).toThrow(/Duplicate evidence/);
+    expect(() => aggregatePositiveEvidence([behavior], [{ ...valid, specId: "missing" }])).toThrow(/unknown EvalSpec/);
+    expect(() => aggregatePositiveEvidence([behavior, behavior], [])).toThrow(/Duplicate EvalSpec/);
   });
 });
 
