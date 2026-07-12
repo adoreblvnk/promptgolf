@@ -68,6 +68,8 @@ export type LiveRun = {
 type Subscriber = (event: LiveRunEvent) => void;
 
 const globalKey = "__promptgolf_live_runs__";
+const MAX_RUNS = 100;
+const MAX_EVENTS_PER_RUN = 200;
 
 type LiveRunStore = {
   runs: Map<string, LiveRun>;
@@ -80,8 +82,19 @@ function getStore(): LiveRunStore {
   return globalObject[globalKey];
 }
 
+function evictOldestRuns() {
+  const store = getStore();
+  while (store.runs.size >= MAX_RUNS) {
+    const oldestId = store.runs.keys().next().value as string | undefined;
+    if (!oldestId) return;
+    store.runs.delete(oldestId);
+    store.subscribers.delete(oldestId);
+  }
+}
+
 export function createLiveRun(input: { prompt: string; challengeSlug: string }) {
-  const id = `live-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  evictOldestRuns();
+  const id = `live-${crypto.randomUUID()}`;
   const now = new Date().toISOString();
   const run: LiveRun = {
     id,
@@ -117,13 +130,14 @@ export function appendLiveRunEvent(id: string, stage: LiveRunStage, level: LiveR
   const run = getLiveRun(id);
   if (!run) return undefined;
   const event: LiveRunEvent = {
-    id: run.events.length + 1,
+    id: (run.events.at(-1)?.id ?? 0) + 1,
     at: new Date().toISOString(),
     stage,
     level,
     message: sanitizeLog(message),
   };
   run.events.push(event);
+  if (run.events.length > MAX_EVENTS_PER_RUN) run.events.splice(0, run.events.length - MAX_EVENTS_PER_RUN);
   run.stage = stage;
   run.updatedAt = event.at;
   getStore().subscribers.get(id)?.forEach((subscriber) => subscriber(event));
