@@ -17,7 +17,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     start(controller) {
       const encoder = new TextEncoder();
       const send = (payload: unknown) => controller.enqueue(encoder.encode(encodeEvent(payload)));
-      send({ type: "snapshot", run: { ...run, prompt: undefined, artifactHtml: undefined } });
+      send({ type: "snapshot", run: { ...run, prompt: undefined, artifactWorkspace: undefined } });
       run.events.forEach((event) => send({ type: "event", event }));
 
       const unsubscribe = subscribeToLiveRun(id, (event) => send({ type: "event", event }));

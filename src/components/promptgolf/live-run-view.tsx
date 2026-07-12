@@ -5,7 +5,7 @@ import { Check, LoaderCircle, X } from "lucide-react";
 import type { LiveRun, LiveRunEvent, LiveRunTestResult } from "@/lib/promptgolf/live-run-store";
 import { cn } from "@/lib/utils";
 
-type SafeRun = Omit<LiveRun, "prompt" | "artifactHtml">;
+type SafeRun = Omit<LiveRun, "prompt" | "artifactWorkspace">;
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

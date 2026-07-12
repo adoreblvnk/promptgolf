@@ -1,10 +1,12 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
 import { collectRunProviderState, generateLiveTestDrafts } from "./adapters";
 import { CHECKOUT_REQUIRED_CONTRACT_MARKERS, checkoutEvaluatorSpecs } from "./evaluator-specs";
-import { deterministicCheckoutArtifact } from "./live-run-fixture";
+import { deterministicCheckoutWorkspace } from "./live-run-fixture";
+import { adaptWorkspace } from "./artifact-adapter";
+import { parseWorkspace, workspaceFile, workspaceSummary, type WorkspaceManifest } from "./workspace";
 import { appendLiveRunEvent, createLiveRun, getLiveRun, sanitizeLog, updateLiveRun, type LiveRunCategoryScore, type LiveRunSkillDiagnosis, type LiveRunTestCategory, type LiveRunTestResult } from "./live-run-store";
 import { captureVisualEvidence, evaluateSpecsWithPlaywright } from "./playwright-evaluator";
 
@@ -71,12 +73,13 @@ function absoluteOrigin(origin?: string) {
   return origin?.replace(/\/$/, "") || `http://127.0.0.1:${process.env.PORT || 3000}`;
 }
 
-function extractHtml(text: string) {
-  const fenced = text.match(/```(?:html)?\s*([\s\S]*?)```/i)?.[1];
+function extractWorkspace(text: string) {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
   const candidate = (fenced ?? text).trim();
-  const start = candidate.search(/<!doctype html>|<html[\s>]/i);
-  if (start < 0) throw new Error("model response did not contain a complete HTML document");
-  return candidate.slice(start);
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("builder response did not contain a workspace manifest");
+  return parseWorkspace(JSON.parse(candidate.slice(start, end + 1)));
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -93,7 +96,8 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, message: string):
   }
 }
 
-function observeArtifactContract(id: string, html: string, provider: string) {
+function observeArtifactContract(id: string, workspace: WorkspaceManifest, provider: string) {
+  const html = workspaceFile(workspace, workspace.entrypoints.preview) ?? "";
   const missingContract = CHECKOUT_REQUIRED_CONTRACT_MARKERS.filter((snippet) => !html.toLowerCase().includes(snippet.toLowerCase()));
   if (missingContract.length) appendLiveRunEvent(id, "generate", "warning", `${provider} artifact missed checkout contract markers: ${missingContract.slice(0, 5).join(", ")}${missingContract.length > 5 ? "…" : ""}. The generated app will be evaluated as-is.`);
 }
@@ -158,10 +162,7 @@ async function readStreamedChatCompletion(response: Response) {
         } catch {
           // Ignore non-JSON keepalive chunks from OpenAI-compatible gateways.
         }
-        if (/<\/html>/i.test(text)) {
-          await reader.cancel().catch(() => undefined);
-          return text;
-        }
+
       }
     }
   } finally {
@@ -171,7 +172,7 @@ async function readStreamedChatCompletion(response: Response) {
   return text;
 }
 
-async function generateViaOpenAICompatible(input: { apiKey: string; baseUrl: string; model: string; provider: string; prompt: string }) {
+async function generateViaOpenAICompatible(input: { credential: string; baseUrl: string; model: string; provider: string; prompt: string }) {
   const controller = new AbortController();
   let timedOut = false;
   const useStreaming = true;
@@ -184,7 +185,7 @@ async function generateViaOpenAICompatible(input: { apiKey: string; baseUrl: str
       method: "POST",
       headers: {
         Accept: "application/json",
-        Authorization: `Bearer ${input.apiKey}`,
+        Authorization: `Bearer ${input.credential}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -196,7 +197,7 @@ async function generateViaOpenAICompatible(input: { apiKey: string; baseUrl: str
           {
             role: "system",
             content:
-              "Return one compact self-contained HTML document only. No markdown. Inline CSS and JS. Public brief: full-stack ecommerce checkout web app with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation. Use seed items Canvas tote, Espresso beans, and Stoneware mug. Use semantic HTML with visible labels for Promo code, Subtotal, Discount, Shipping, Tax, Total, and accessible button names such as Increase Canvas tote, Decrease Canvas tote, Increase Stoneware mug, and Decrease Stoneware mug. Keep code concise. Implement exactly what the user's prompt asks. If the prompt omits business edge cases, use straightforward happy-path behavior rather than adding production safeguards.",
+              "Act as an autonomous project builder. Return JSON only matching {schemaVersion:1,framework,language,packageManager,files:[{path,content}],commands:{install?,build,start},runtime:{port,healthPath},entrypoints:{preview,manifest}}. Create a genuine framework-native, multi-file full-stack checkout project in the framework requested by the contestant (default Next.js). Include package/framework manifest, source files, API/server behavior, and real build/start commands. entrypoints.preview must be an HTML file the evaluator can render directly as deterministic evidence. Never return a single-file project. Public brief: ecommerce checkout with quantities, promos, totals, tax, and confirmation. Implement exactly the contestant spec; do not silently add omitted edge cases.",
           },
           { role: "user", content: input.prompt.slice(0, 6000) },
         ],
@@ -208,7 +209,7 @@ async function generateViaOpenAICompatible(input: { apiKey: string; baseUrl: str
       throw new Error(`${input.provider} HTTP ${response.status}: ${raw.slice(0, 220)}`);
     }
     const text = useStreaming ? await readStreamedChatCompletion(response) : extractChatContent(await response.json());
-    return extractHtml(text);
+    return extractWorkspace(text);
   } catch (error) {
     if (timedOut) throw new Error(`${input.provider} generation exceeded ${Math.round(GENERATION_TIMEOUT_MS / 1000)}s timeout while creating the checkout artifact`);
     throw error;
@@ -394,18 +395,18 @@ async function generateArtifact(id: string, prompt: string) {
   if (stubsEnabled()) {
     appendLiveRunEvent(id, "generate", "success", "CI stub mode enabled: using deterministic generated checkout artifact with no network or secrets.");
     updateLiveRun(id, { providerMode: "stubbed fixture" });
-    return deterministicCheckoutArtifact();
+    return deterministicCheckoutWorkspace();
   }
 
   const agnesKey = process.env.AGNES_AI_API_KEY?.trim();
   if (agnesKey) {
     try {
-      appendLiveRunEvent(id, "generate", "info", `Generating self-contained checkout app with Agnes AI (${AGNES_AI_MODEL}).`);
-      const html = await generateViaOpenAICompatible({ apiKey: agnesKey, baseUrl: AGNES_AI_BASE_URL, model: AGNES_AI_MODEL, provider: "Agnes AI", prompt });
-      observeArtifactContract(id, html, "Agnes AI");
+      appendLiveRunEvent(id, "generate", "info", `Building a framework-native project workspace with Agnes AI (${AGNES_AI_MODEL}).`);
+      const workspace = await generateViaOpenAICompatible({ credential: agnesKey, baseUrl: AGNES_AI_BASE_URL, model: AGNES_AI_MODEL, provider: "Agnes AI", prompt });
+      observeArtifactContract(id, workspace, "Agnes AI");
       updateLiveRun(id, { providerMode: `Agnes AI live · ${AGNES_AI_MODEL}` });
-      appendLiveRunEvent(id, "generate", "success", "Agnes AI returned a checkout artifact. It will be evaluated as generated, with no deterministic repair artifact.");
-      return html;
+      appendLiveRunEvent(id, "generate", "success", `Builder returned ${workspaceSummary(workspace)}. It will be evaluated as generated with no repair.`);
+      return workspace;
     } catch (error) {
       updateLiveRun(id, { providerMode: "Agnes AI live generation failed" });
       throw new Error(`Agnes AI live generation failed without repair fallback: ${sanitizeLog(error instanceof Error ? error.message : String(error))}`);
@@ -416,7 +417,8 @@ async function generateArtifact(id: string, prompt: string) {
   }
 }
 
-async function attemptDaytonaPreview(id: string, html: string) {
+async function attemptDaytonaPreview(id: string, workspace: WorkspaceManifest) {
+  if (!workspaceFile(workspace, workspace.entrypoints.preview)) throw new Error("Workspace preview entrypoint is unavailable.");
   if (stubsEnabled()) {
     updateLiveRun(id, { sandboxMode: "CI stub · local artifact route" });
     appendLiveRunEvent(id, "sandbox", "info", "CI stub mode avoids sandbox network calls and uses the local artifact route.");
@@ -450,8 +452,6 @@ async function attemptDaytonaPreview(id: string, html: string) {
 
     const tempDir = await mkdtemp(path.join(tmpdir(), "promptgolf-daytona-"));
     try {
-      const localFile = path.join(tempDir, "index.html");
-      await writeFile(localFile, html, "utf8");
       const remoteDir = "/home/daytona/promptgolf-live";
       if (!("fs" in sandbox) || typeof sandbox.fs !== "object" || !sandbox.fs || !("uploadFile" in sandbox.fs)) {
         throw new Error("Sandbox fs.uploadFile is unavailable in this SDK shape");
@@ -466,8 +466,18 @@ async function attemptDaytonaPreview(id: string, html: string) {
       await processApi.createSession("promptgolf");
       await processApi.createSession("promptgolf-probe");
       await processApi.executeSessionCommand("promptgolf", { command: `mkdir -p ${remoteDir}` }, 10);
-      await (sandbox.fs as { uploadFile: (src: string, dst: string, timeout?: number) => Promise<void> }).uploadFile(localFile, `${remoteDir}/index.html`, 30);
-      await processApi.executeSessionCommand("promptgolf", { command: `cd ${remoteDir} && python3 -m http.server 3000`, runAsync: true }, 5);
+      for (const file of workspace.files) {
+        const localFile = path.join(tempDir, file.path);
+        await mkdir(path.dirname(localFile), { recursive: true });
+        await writeFile(localFile, file.content, "utf8");
+        const remoteFile = `${remoteDir}/${file.path}`;
+        await processApi.executeSessionCommand("promptgolf", { command: `mkdir -p ${path.posix.dirname(remoteFile)}` }, 10);
+        await (sandbox.fs as { uploadFile: (src: string, dst: string, timeout?: number) => Promise<void> }).uploadFile(localFile, remoteFile, 30);
+      }
+      if (workspace.commands.install) await processApi.executeSessionCommand("promptgolf", { command: `cd ${remoteDir} && ${workspace.commands.install}` }, 120);
+      const build = await processApi.executeSessionCommand("promptgolf", { command: `cd ${remoteDir} && ${workspace.commands.build}` }, 180);
+      if (build.exitCode) throw new Error(`Workspace build failed: ${build.stderr || build.stdout || `exit ${build.exitCode}`}`);
+      await processApi.executeSessionCommand("promptgolf", { command: `cd ${remoteDir} && PORT=${workspace.runtime.port} ${workspace.commands.start}`, runAsync: true }, 5);
       const localProbe = await processApi.executeSessionCommand(
         "promptgolf-probe",
         {
@@ -477,8 +487,8 @@ import urllib.request
 last = ''
 for _ in range(10):
   try:
-    body = urllib.request.urlopen('http://127.0.0.1:3000', timeout=2).read().decode('utf-8', 'ignore')
-    print('probe_ok', len(body), '<html' in body.lower())
+    body = urllib.request.urlopen('http://127.0.0.1:${workspace.runtime.port}${workspace.runtime.healthPath}', timeout=2).read().decode('utf-8', 'ignore')
+    print('probe_ok', len(body))
     raise SystemExit(0)
   except Exception as exc:
     last = str(exc)
@@ -490,16 +500,16 @@ PY`,
         10,
       );
       if (localProbe.exitCode && localProbe.exitCode !== 0) throw new Error(`Sandbox local server probe failed: ${localProbe.stderr || localProbe.stdout || `exit ${localProbe.exitCode}`}`);
-      if (!localProbe.stdout?.includes("probe_ok") || !localProbe.stdout.includes("True")) throw new Error(`Sandbox local server did not serve an HTML artifact: ${localProbe.stdout || localProbe.stderr || "empty probe output"}`);
+      if (!localProbe.stdout?.includes("probe_ok")) throw new Error(`Sandbox local server health route did not respond: ${localProbe.stdout || localProbe.stderr || "empty probe output"}`);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
 
     const preview =
       "getSignedPreviewUrl" in sandbox && typeof sandbox.getSignedPreviewUrl === "function"
-        ? await withTimeout(sandbox.getSignedPreviewUrl(3000, 300), 10000, "Sandbox signed preview URL was not returned before the demo timeout")
+        ? await withTimeout(sandbox.getSignedPreviewUrl(workspace.runtime.port, 300), 10000, "Sandbox signed preview URL was not returned before the demo timeout")
         : "getPreviewLink" in sandbox && typeof sandbox.getPreviewLink === "function"
-          ? await withTimeout(sandbox.getPreviewLink(3000), 10000, "Sandbox preview link was not returned before the demo timeout")
+          ? await withTimeout(sandbox.getPreviewLink(workspace.runtime.port), 10000, "Sandbox preview link was not returned before the demo timeout")
           : undefined;
     const previewUrl = previewUrlFrom(preview);
     if (previewUrl?.startsWith("http")) {
@@ -550,11 +560,13 @@ async function executeLiveRun(id: string, origin: string) {
   try {
     updateLiveRun(id, { status: "running" });
     appendLiveRunEvent(id, "generate", "info", "Starting live artifact generation. Provider probes are deferred so they do not compete with the Agnes builder call.");
-    const html = await generateArtifact(id, run.prompt);
-    updateLiveRun(id, { artifactHtml: html });
+    const workspace = await generateArtifact(id, run.prompt);
+    const canonical = adaptWorkspace(workspace);
+    updateLiveRun(id, { artifactWorkspace: workspace });
+    appendLiveRunEvent(id, "generate", "success", `Artifact adapter mapped ${canonical.capabilities.length} canonical capabilities without source-structure grading.`);
     collectRunProviderState(run.prompt).then((providerState) => updateLiveRun(id, { providerState })).catch(() => undefined);
 
-    const daytonaPreview = await attemptDaytonaPreview(id, html);
+    const daytonaPreview = await attemptDaytonaPreview(id, workspace);
     const localPreview = `${origin}/api/live-runs/${id}/artifact`;
     if (!daytonaPreview) updateLiveRun(id, { previewUrl: localPreview, previewLabel: stubsEnabled() ? "Local generated artifact · CI stub" : "Local generated artifact · explicit sandbox fallback" });
 

@@ -1,4 +1,5 @@
 import type { ProviderProbe } from "./adapters";
+import type { WorkspaceManifest } from "./workspace";
 
 export type LiveRunStatus = "queued" | "running" | "completed" | "failed";
 export type LiveRunStage = "queued" | "generate" | "sandbox" | "test" | "score" | "completed" | "failed";
@@ -50,7 +51,7 @@ export type LiveRun = {
   sandboxMode: string;
   previewUrl?: string;
   previewLabel?: string;
-  artifactHtml?: string;
+  artifactWorkspace?: WorkspaceManifest;
   tests: LiveRunTestResult[];
   score?: {
     passed: number;
