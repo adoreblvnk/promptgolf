@@ -9,7 +9,7 @@ export default function ChallengesPage() {
       <Section className="pb-10 pt-16">
         <Eyebrow>Challenge catalog</Eyebrow>
         <h1 className="mt-6 max-w-4xl text-5xl font-semibold tracking-[-0.04em] text-balance text-ink md:text-7xl">Product briefs that punish vague specs.</h1>
-        <p className="mt-6 max-w-2xl text-lg leading-8 text-ink-soft">Each challenge exposes a normal public brief. The hidden evaluator checks the messy product and engineering behavior good specs should include.</p>
+        <p className="mt-6 max-w-2xl text-lg leading-8 text-ink-soft">Six artifact-spanning briefs show the evaluation taxonomy. Live status means runnable today; preview briefs document the next adapters without pretending they execute.</p>
       </Section>
       <Section className="pt-4">
         <div className="grid gap-5 lg:grid-cols-2">
@@ -20,10 +20,12 @@ export default function ChallengesPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded bg-ink px-2.5 py-1 font-mono text-xs font-medium uppercase tracking-wider text-paper">{challenge.status}</span>
                     <span className="rounded border border-rule px-2.5 py-1 font-mono text-xs text-ink-soft">{challenge.difficulty}</span>
+                    <span className="rounded border border-rule px-2.5 py-1 font-mono text-xs text-ink-soft">{challenge.categoryLabel}</span>
                     <span className="inline-flex items-center gap-1 rounded border border-rule px-2.5 py-1 font-mono text-xs text-ink-soft"><Clock className="size-3" /> {challenge.estimatedMinutes} min</span>
                   </div>
                   <h2 className="mt-6 text-3xl font-semibold tracking-[-0.02em] text-ink">{challenge.title}</h2>
                   <p className="mt-3 text-sm leading-6 text-ink-soft">{challenge.subtitle}</p>
+                  <p className="mt-4 font-mono text-xs text-ink-muted">{challenge.framework} · {challenge.artifact} artifact</p>
                   <div className="mt-6 rounded-md border border-rule bg-paper p-5">
                     <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.12em] text-ink-muted"><LockKeyhole className="size-3.5 text-accent" /> Hidden evaluator teaser</div>
                     <p className="mt-3 text-sm leading-6 text-ink-soft">{challenge.thesis}</p>

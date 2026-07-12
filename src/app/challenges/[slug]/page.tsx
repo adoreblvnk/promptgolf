@@ -24,7 +24,8 @@ export default async function ChallengePage({ params }: { params: Promise<{ slug
         <div className="mt-7 flex flex-wrap gap-2">
           <span className="rounded border border-rule bg-paper px-2.5 py-1 font-mono text-xs text-ink-soft">{challenge.difficulty}</span>
           <span className="rounded border border-rule bg-paper px-2.5 py-1 font-mono text-xs text-ink-soft">{challenge.estimatedMinutes} minute target</span>
-          <span className="rounded border border-pass/30 bg-pass-soft px-2.5 py-1 font-mono text-xs text-pass">Live execution</span>
+          <span className="rounded border border-rule bg-paper px-2.5 py-1 font-mono text-xs text-ink-soft">{challenge.categoryLabel}</span>
+          <span className={`rounded border px-2.5 py-1 font-mono text-xs ${challenge.status === "live" ? "border-pass/30 bg-pass-soft text-pass" : "border-rule bg-paper text-ink-muted"}`}>{challenge.status === "live" ? "Live execution" : "Preview · execution unavailable"}</span>
         </div>
       </Section>
 
@@ -32,7 +33,7 @@ export default async function ChallengePage({ params }: { params: Promise<{ slug
         <div className="mb-5 flex flex-col justify-between gap-3 md:flex-row md:items-end">
           <div>
             <h2 className="text-2xl font-semibold tracking-[-0.02em] text-ink">Write your spec</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">Agnes AI builds exactly what you write, the sandbox serves it, and Playwright runs hidden tests against the real app.</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">{challenge.status === "live" ? "The builder creates a framework-native workspace, the sandbox serves it, and Playwright records positive capability evidence." : `This ${challenge.framework} adapter brief is published for review, but submissions are not enabled yet.`}</p>
           </div>
           <Link href="/leaderboard" className="inline-flex min-h-11 items-center gap-2 font-mono text-sm text-ink-soft transition-colors hover:text-ink">Leaderboard <ArrowRight className="size-4" /></Link>
         </div>
@@ -43,7 +44,7 @@ export default async function ChallengePage({ params }: { params: Promise<{ slug
           </div>
           <div className="p-5">
             <div className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-muted">Your spec · {challenge.title}</div>
-            <PromptRunner challengeSlug={challenge.slug} />
+            {challenge.status === "live" ? <PromptRunner challengeSlug={challenge.slug} /> : <div className="rounded-md border border-dashed border-rule bg-paper p-8 text-center"><p className="font-medium text-ink">Evaluator adapter in preview</p><p className="mt-2 text-sm text-ink-soft">Browse the requirements now. Runnable submissions will open only after the {challenge.artifact} adapter passes production verification.</p></div>}
           </div>
         </div>
       </Section>

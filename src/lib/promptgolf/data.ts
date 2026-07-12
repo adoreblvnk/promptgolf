@@ -7,6 +7,10 @@ export type Challenge = {
   subtitle: string;
   difficulty: "warmup" | "intermediate" | "expert";
   status: "live" | "preview";
+  category: "full-stack" | "backend-api" | "data-ml" | "systems-cli" | "security-reliability" | "domain-workflows";
+  categoryLabel: string;
+  artifact: "web" | "api" | "cli" | "pipeline";
+  framework: string;
   estimatedMinutes: number;
   publicBrief: string;
   thesis: string;
@@ -113,6 +117,7 @@ export const challenges: Challenge[] = [
     subtitle: "A production checkout brief where vague specs collapse under real commerce edge cases.",
     difficulty: "intermediate",
     status: "live",
+    category: "full-stack", categoryLabel: "Full-stack & web", artifact: "web", framework: "Next.js 16",
     estimatedMinutes: 12,
     publicBrief: "Build a full-stack ecommerce checkout web app with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation.",
     thesis: "The visible checkout is the easy part. Hidden tests reveal whether your spec encodes cents math, stock rules, async safety, and mobile checkout behavior.",
@@ -137,6 +142,7 @@ export const challenges: Challenge[] = [
     subtitle: "SaaS settings workflow with hidden lifecycle and permission traps.",
     difficulty: "expert",
     status: "preview",
+    category: "domain-workflows", categoryLabel: "Domain workflows", artifact: "web", framework: "Next.js 16",
     estimatedMinutes: 18,
     publicBrief: "Build a team settings page where an owner can invite users, view pending invites, accept invites, and manage roles.",
     thesis: "CRUD is not enough: hidden tests check duplicate invites, single-use tokens, last-owner protection, and role authorization.",
@@ -144,7 +150,25 @@ export const challenges: Challenge[] = [
     hiddenTeasers: ["Email normalization", "Duplicate invite prevention", "Single-use tokens", "Last owner protection", "Danger confirmations"],
     guide: ["Specify permission matrix", "Define invite lifecycle", "Add irreversible-action confirmations", "Prove failure states."],
   },
+  {
+    slug: "idempotent-payment-webhooks", title: "Idempotent Payment Webhooks", subtitle: "Retries, ordering, and atomicity are the product.", difficulty: "expert", status: "preview", category: "backend-api", categoryLabel: "Backend & API", artifact: "api", framework: "Node.js API", estimatedMinutes: 22,
+    publicBrief: "Build an API that receives signed payment events and updates order state safely across retries.", thesis: "Positive evidence covers signature validation, idempotent retries, ordering, and observable recovery.", publicRequirements: ["Receive signed events", "Update order state", "Return stable responses"], hiddenTeasers: ["Retry idempotency", "Event ordering", "Atomic updates"], guide: ["Define the state machine", "Specify retries", "Cover concurrency"],
+  },
+  {
+    slug: "messy-csv-reconciliation", title: "Messy CSV Reconciliation", subtitle: "Turn inconsistent exports into an explainable ledger.", difficulty: "intermediate", status: "preview", category: "data-ml", categoryLabel: "Data & ML", artifact: "pipeline", framework: "Python pipeline", estimatedMinutes: 20,
+    publicBrief: "Build a pipeline that reconciles transaction CSVs and emits matched, unmatched, and summary outputs.", thesis: "Properties check normalization, decimal-safe totals, duplicates, and provenance.", publicRequirements: ["Ingest CSVs", "Normalize records", "Export audit results"], hiddenTeasers: ["Encoding variance", "Decimal precision", "Duplicate records"], guide: ["Define canonical fields", "Preserve provenance", "Add invariants"],
+  },
+  {
+    slug: "resumable-file-sync-cli", title: "Resumable File Sync CLI", subtitle: "A CLI tested through interruptions and repeat runs.", difficulty: "expert", status: "preview", category: "systems-cli", categoryLabel: "Systems & CLI", artifact: "cli", framework: "Node.js CLI", estimatedMinutes: 24,
+    publicBrief: "Build a CLI that synchronizes a directory with dry-run output and resumable transfers.", thesis: "State traces prove safe resume, deterministic dry runs, useful exit codes, and scriptable progress.", publicRequirements: ["Sync a directory", "Support dry run", "Resume work"], hiddenTeasers: ["Interrupted resume", "Convergence", "Exit codes"], guide: ["Specify exits", "Model interruptions", "Define convergence"],
+  },
+  {
+    slug: "rate-limit-abuse-controls", title: "Rate Limit + Abuse Controls", subtitle: "Reliability controls correct at boundaries and under concurrency.", difficulty: "expert", status: "preview", category: "security-reliability", categoryLabel: "Security & reliability", artifact: "api", framework: "HTTP service", estimatedMinutes: 20,
+    publicBrief: "Build rate-limit middleware with tenant policies, response metadata, and an audit trail.", thesis: "Evidence checks policy boundaries, concurrency, recovery, and client feedback—not a preferred algorithm.", publicRequirements: ["Enforce tenant limits", "Return metadata", "Record decisions"], hiddenTeasers: ["Window boundaries", "Concurrency", "Tenant isolation"], guide: ["Define policy semantics", "Specify contracts", "Make decisions observable"],
+  },
 ];
+
+export const challengeCategories = Array.from(new Map(challenges.map(({ category, categoryLabel }) => [category, categoryLabel])).entries()).map(([id, label]) => ({ id, label }));
 
 const seededRunsBase = [
   {
