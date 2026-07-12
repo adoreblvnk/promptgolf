@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendLiveRunEvent, createLiveRun, getLiveRun } from "./live-run-store";
+import { appendLiveRunEvent, createLiveRun, getLiveRun, subscribeToLiveRun } from "./live-run-store";
 
 describe("process-local live run store bounds", () => {
   it("uses unguessable run identifiers and evicts the oldest run at capacity", () => {
@@ -22,5 +22,15 @@ describe("process-local live run store bounds", () => {
     expect(run.events).toHaveLength(200);
     expect(run.events[0].id).toBe(7);
     expect(run.events.at(-1)?.id).toBe(206);
+  });
+
+  it("bounds event-stream subscribers and releases capacity on unsubscribe", () => {
+    const run = createLiveRun({ prompt: "subscriber bound", challengeSlug: "mini-checkout-promo-engine" });
+    const unsubscribers = Array.from({ length: 25 }, () => subscribeToLiveRun(run.id, () => undefined));
+
+    expect(() => subscribeToLiveRun(run.id, () => undefined)).toThrow(/too many event-stream viewers/i);
+    unsubscribers[0]();
+    expect(() => subscribeToLiveRun(run.id, () => undefined)).not.toThrow();
+    unsubscribers.slice(1).forEach((unsubscribe) => unsubscribe());
   });
 });

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getLiveRun, subscribeToLiveRun } from "@/lib/promptgolf/live-run-store";
+import { getLiveRun, LiveRunSubscriberLimitError, subscribeToLiveRun } from "@/lib/promptgolf/live-run-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,28 +13,43 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const run = getLiveRun(id);
   if (!run) return NextResponse.json({ error: "Live run not found" }, { status: 404 });
 
-  const stream = new ReadableStream({
-    start(controller) {
-      const encoder = new TextEncoder();
-      const send = (payload: unknown) => controller.enqueue(encoder.encode(encodeEvent(payload)));
-      send({ type: "snapshot", run: { ...run, prompt: undefined, artifactWorkspace: undefined } });
-      run.events.forEach((event) => send({ type: "event", event }));
+  const encoder = new TextEncoder();
+  const stream = new TransformStream<Uint8Array, Uint8Array>();
+  const writer = stream.writable.getWriter();
+  let closed = false;
+  let unsubscribe: () => void = () => undefined;
+  const timers: { heartbeat?: ReturnType<typeof setInterval> } = {};
 
-      const unsubscribe = subscribeToLiveRun(id, (event) => send({ type: "event", event }));
-      const heartbeat = setInterval(() => send({ type: "heartbeat", at: new Date().toISOString() }), 15000);
-      request.signal.addEventListener("abort", () => {
-        clearInterval(heartbeat);
-        unsubscribe();
-        controller.close();
-      });
-    },
-  });
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    if (timers.heartbeat) clearInterval(timers.heartbeat);
+    unsubscribe();
+    void writer.close().catch(() => undefined);
+  };
+  const send = (payload: unknown) => {
+    if (!closed) void writer.write(encoder.encode(encodeEvent(payload))).catch(close);
+  };
 
-  return new Response(stream, {
+  try {
+    unsubscribe = subscribeToLiveRun(id, (event) => send({ type: "event", event }));
+  } catch (error) {
+    if (error instanceof LiveRunSubscriberLimitError) {
+      return NextResponse.json({ error: error.message }, { status: 429, headers: { "Retry-After": "15" } });
+    }
+    throw error;
+  }
+
+  timers.heartbeat = setInterval(() => send({ type: "heartbeat", at: new Date().toISOString() }), 15000);
+  request.signal.addEventListener("abort", close, { once: true });
+  send({ type: "snapshot", run: { ...run, prompt: undefined, artifactWorkspace: undefined } });
+
+  return new Response(stream.readable, {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 }
