@@ -3,10 +3,15 @@ import { generateLiveTestDrafts } from "@/lib/promptgolf";
 import { getModelPolicy } from "@/lib/promptgolf/model";
 import { validateGenerateTestsInput } from "@/lib/promptgolf/generate-tests-input";
 import { readBoundedJson } from "@/lib/promptgolf/request-json";
+import { consumeRateLimit, rateLimitResponse, requestClientKey } from "@/lib/promptgolf/rate-limit";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const globalLimit = consumeRateLimit("generate-tests:global", { limit: 100, windowMs: 60_000 });
+  if (!globalLimit.allowed) return rateLimitResponse(globalLimit);
+  const rateLimit = consumeRateLimit(`generate-tests:${requestClientKey(request)}`, { limit: 10, windowMs: 60_000 });
+  if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
   const body = await readBoundedJson(request);
   if (!body.success) return NextResponse.json({ error: body.message, code: "invalid-request-body" }, { status: body.status });
   const input = validateGenerateTestsInput(body.data);
