@@ -1,6 +1,6 @@
 # PromptGolf Project Context
 
-Last updated: 2026-06-15, after removing stale planning notes and aligning this document with the current `src/` implementation.
+Last updated: 2026-07-13, for the production positive-evidence and workspace architecture.
 
 This document is the source of truth for building PromptGolf. Current event link: Agnes AI Hackathon @ SMU, https://luma.com/s9s8bjla.
 
@@ -38,7 +38,9 @@ The current product slice is a real local flow with provider-backed boundaries.
 
 - The app uses the Next.js App Router under `src/app`, reusable UI under `src/components`, and PromptGolf domain code under `src/lib/promptgolf`.
 - The challenge page submits prompts through a server action that starts a live run and redirects to `/live-runs/[id]`.
-- The live run path uses Agnes 2.0 Flash generation, Daytona sandbox preview creation when credentials are present, TokenRouter evaluator draft generation, Playwright scoring against the generated artifact, and Agnes screenshot/prompt diagnosis.
+- The live builder returns a validated, framework-native multi-file workspace with build/start/runtime metadata. Daytona uploads every file, runs the declared build/start commands, and exposes the application when credentials are present.
+- Evaluation is positive capability evidence only. The pillars are behavior testing (examples, state-machine traces, fuzz/properties), spec completeness (requirement trees), and artifact adapters (semantic framework discovery into a canonical protocol).
+- Evaluator policy rejects negative testing, mutation testing, implementation/signature/CSS fingerprints, and preferred-method enforcement. Contestant artifacts are graded by observable outcomes.
 - Live mode fails honestly when required provider steps are unavailable. Local artifact fallback is only allowed in CI stub mode or when `PROMPTGOLF_ALLOW_LOCAL_SANDBOX_FALLBACK=1` is explicitly set.
 - `POST /api/runs` remains available for deterministic naive/structured/expert seeded reference runs.
 - Seeded run pages, the leaderboard, scorecards, provider posture, generated-checkout preview surfaces, and API routes should remain functional under `npm run build`.
@@ -199,10 +201,10 @@ OpenAI posture:
 Current live execution steps:
 
 1. Create an in-memory live run.
-2. Generate a self-contained checkout HTML artifact with Agnes AI.
-3. Observe required checkout contract markers without repairing the artifact.
-4. Create a Daytona TypeScript sandbox when credentials are present.
-5. Upload `index.html`, start `python3 -m http.server`, probe the sandbox-local server, and expose a signed preview URL.
+2. Ask the builder agent for a framework requested by the contestant (Next.js by default) and validate its workspace manifest, files, and commands.
+3. Adapt semantic routes, controls, outputs, and commands to canonical capabilities without source fingerprints.
+4. Create a Daytona sandbox when credentials are present.
+5. Upload the workspace, run its install/build/start lifecycle, probe its health route, and expose a signed preview URL.
 6. Use the local artifact route only in CI stub mode or explicit local fallback mode.
 7. Route evaluator draft generation through TokenRouter before deterministic scoring.
 8. Materialize natural-language evaluator specs into Playwright checks.
@@ -278,9 +280,9 @@ Prompt counting rules:
 - Manual edits should be disallowed or moved to an assisted category.
 - Prompt transcripts should be visible on result pages for transparency, with secrets redacted.
 
-## Hidden Test Philosophy
+## Positive Evidence Philosophy
 
-Hidden tests should reveal whether the prompt includes engineering details competent developers know but novices omit.
+Hidden evaluation should reveal whether the prompt includes engineering details competent developers know but novices omit, using only positive observable capability claims.
 
 Good hidden tests:
 
@@ -293,13 +295,11 @@ Good hidden tests:
 - Data normalization.
 - Boundary values.
 
-Bad hidden tests:
+Prohibited evaluator strategies:
 
-- Arbitrary trivia.
-- Secret requirements unrelated to the public task.
-- Brittle CSS pixel-perfect checks.
-- Tests that require reading the organizer’s mind.
-- Model-specific prompt phrasing checks.
+- Testing what an artifact is not or mutating it to manufacture failures.
+- Source signatures, implementation hardcoding, CSS-selector fingerprints, or preferred-method enforcement.
+- Arbitrary trivia, secret unrelated requirements, or model-specific phrasing checks.
 
 Hidden tests should feel fair in hindsight: “A good engineer should have thought of that.”
 
