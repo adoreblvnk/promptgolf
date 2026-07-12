@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server";
 import { generateLiveTestDrafts } from "@/lib/promptgolf";
 import { getModelPolicy } from "@/lib/promptgolf/model";
+import { validateGenerateTestsInput } from "@/lib/promptgolf/generate-tests-input";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const specs = Array.isArray(body.specs) ? body.specs : [];
-  const draft = await generateLiveTestDrafts(specs as Array<{ title?: unknown }>);
+  const input = validateGenerateTestsInput(body);
+  if (!input.success) {
+    return NextResponse.json({ error: input.message }, { status: 400 });
+  }
+
+  const draft = await generateLiveTestDrafts(input.data.specs);
   const ok = draft.provider.status === "connected";
 
   return NextResponse.json(
