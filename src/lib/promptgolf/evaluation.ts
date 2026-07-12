@@ -42,14 +42,19 @@ export const evalSpecSchema = z.object({
 });
 
 export type EvalSpec = z.infer<typeof evalSpecSchema>;
-export type EvidenceStatus = "satisfied" | "partial" | "unobserved";
-export type CapabilityEvidence = {
-  specId: string;
-  requirementId: string;
-  pillar: EvalSpec["pillar"];
-  status: EvidenceStatus;
-  observations: Array<{ protocolKey: string; summary: string; source: "browser" | "adapter" | "requirement" }>;
-};
+export const capabilityEvidenceSchema = z.object({
+  specId: z.string().min(1),
+  requirementId: z.string().min(1),
+  pillar: z.enum(["behavior", "spec-completeness", "artifact-adapter"]),
+  status: z.enum(["satisfied", "partial", "unobserved"]),
+  observations: z.array(z.object({
+    protocolKey: z.string().min(1),
+    summary: z.string().min(1),
+    source: z.enum(["browser", "adapter", "requirement"]),
+  })),
+});
+export type EvidenceStatus = z.infer<typeof capabilityEvidenceSchema>["status"];
+export type CapabilityEvidence = z.infer<typeof capabilityEvidenceSchema>;
 
 export function parseEvalSpec(input: unknown): EvalSpec {
   return evalSpecSchema.parse(input);
@@ -71,7 +76,8 @@ export function aggregatePositiveEvidence(specs: EvalSpec[], evidence: Capabilit
   }
 
   const bySpec = new Map<string, CapabilityEvidence>();
-  for (const item of evidence) {
+  for (const candidate of evidence) {
+    const item = capabilityEvidenceSchema.parse(candidate);
     const spec = specById.get(item.specId);
     if (!spec) throw new Error(`Evidence references unknown EvalSpec '${item.specId}'.`);
     if (bySpec.has(item.specId)) throw new Error(`Duplicate evidence for EvalSpec '${item.specId}'.`);
@@ -87,6 +93,14 @@ export function aggregatePositiveEvidence(specs: EvalSpec[], evidence: Capabilit
     }
     if (item.status === "unobserved" && item.observations.length > 0) {
       throw new Error(`Unobserved evidence for '${item.specId}' cannot contain observations.`);
+    }
+    const expectedSource = spec.pillar === "behavior" ? "browser" : spec.pillar === "artifact-adapter" ? "adapter" : "requirement";
+    if (item.observations.some((observation) => observation.source !== expectedSource)) {
+      throw new Error(`Evidence for '${item.specId}' must use ${expectedSource} observations for the ${spec.pillar} pillar.`);
+    }
+    const observedKeys = item.observations.map((observation) => observation.protocolKey);
+    if (new Set(observedKeys).size !== observedKeys.length) {
+      throw new Error(`Evidence for '${item.specId}' contains duplicate observations.`);
     }
     bySpec.set(item.specId, item);
   }

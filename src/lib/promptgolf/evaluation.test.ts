@@ -46,6 +46,14 @@ describe("positive evidence aggregation", () => {
     expect(() => aggregatePositiveEvidence([behavior], [{ ...valid, specId: "missing" }])).toThrow(/unknown EvalSpec/);
     expect(() => aggregatePositiveEvidence([behavior, behavior], [])).toThrow(/Duplicate EvalSpec/);
   });
+
+  it("validates provenance and observation integrity at runtime", () => {
+    const observation = { protocolKey: "checkout.discount", summary: "observed discount", source: "browser" as const };
+    const valid = { specId: behavior.id, requirementId: behavior.requirementId, pillar: "behavior" as const, status: "satisfied" as const, observations: [observation] };
+    expect(() => aggregatePositiveEvidence([behavior], [{ ...valid, observations: [{ ...observation, source: "adapter" as const }] }])).toThrow(/must use browser observations/);
+    expect(() => aggregatePositiveEvidence([behavior], [{ ...valid, observations: [observation, observation] }])).toThrow(/duplicate observations/);
+    expect(() => aggregatePositiveEvidence([behavior], [{ ...valid, observations: [{ ...observation, summary: "" }] }])).toThrow();
+  });
 });
 
 describe("workspace and artifact adapter", () => {
