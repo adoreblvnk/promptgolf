@@ -3,10 +3,20 @@ import { expect, test } from "@playwright/test";
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 
 test("PromptGolf demo flow renders challenge, leaderboard, and expert run", async ({ page }) => {
+  const browserErrors: string[] = [];
+  page.on("pageerror", (error) => browserErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error" && !message.text().startsWith("Failed to load resource:")) browserErrors.push(message.text());
+  });
+  page.on("response", (response) => {
+    if (response.status() >= 400 && !response.url().includes("/api/live-runs/")) browserErrors.push(`HTTP ${response.status()} ${response.url()}`);
+  });
   await page.goto(baseURL);
   await expect(page).toHaveTitle("PromptGolf - LeetCode for agentic prompting");
-  await expect(page.getByText("Live sandbox API credentials are configured")).toBeVisible();
-  await page.getByRole("link", { name: /Try the challenge/i }).click();
+  await expect(page.getByText("Behavior evidence")).toBeVisible();
+  await expect(page.getByText("Spec completeness")).toBeVisible();
+  await expect(page.getByText("Artifact adapters")).toBeVisible();
+  await page.goto(`${baseURL}/challenges/mini-checkout-promo-engine`);
 
   await expect(page.getByRole("heading", { name: "Full Stack Ecommerce Checkout Web App" })).toBeVisible();
   await expect(page.getByText("Live execution", { exact: true })).toBeVisible();
@@ -16,7 +26,7 @@ test("PromptGolf demo flow renders challenge, leaderboard, and expert run", asyn
   await page.getByRole("button", { name: /Submit prompt/i }).click();
 
   await expect(page).toHaveURL(/\/live-runs\/live-/);
-  await expect(page.getByRole("heading", { name: "Live checkout execution" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Live checkout preview" })).toBeVisible();
   await expect(page.getByTestId("live-log")).toContainText(/CI stub mode|deterministic generated checkout artifact/, { timeout: 20_000 });
   await expect(page.getByTestId("live-run-complete")).toBeAttached({ timeout: 30_000 });
   await expect(page.getByTestId("live-score")).toContainText(/\d+\/\d+/);
@@ -26,6 +36,7 @@ test("PromptGolf demo flow renders challenge, leaderboard, and expert run", asyn
   await expect(page.getByRole("heading", { name: "Fewer prompts. More passing tests." })).toBeVisible();
   await expect(page.getByText("#1").first()).toBeVisible();
   await expect(page.getByText("Expert ecommerce spec").first()).toBeVisible();
+  expect(browserErrors, `Unexpected browser console errors: ${browserErrors.join(" | ")}`).toEqual([]);
 });
 
 test("POST /api/runs classifies submissions and reports provider state", async ({ request }) => {
