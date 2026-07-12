@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getLiveRun } from "@/lib/promptgolf/live-run-store";
+import { workspaceFile } from "@/lib/promptgolf/workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,8 +8,10 @@ export const dynamic = "force-dynamic";
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const run = getLiveRun(id);
-  if (!run?.artifactHtml) return NextResponse.json({ error: "Generated artifact is not ready yet." }, { status: 404 });
-  return new Response(run.artifactHtml, {
+  if (!run?.artifactWorkspace) return NextResponse.json({ error: "Generated workspace is not ready yet." }, { status: 404 });
+  const preview = workspaceFile(run.artifactWorkspace, run.artifactWorkspace.entrypoints.preview);
+  if (!preview) return NextResponse.json({ error: "Workspace preview entrypoint is missing." }, { status: 500 });
+  return new Response(preview, {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",

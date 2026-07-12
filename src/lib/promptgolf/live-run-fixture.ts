@@ -1,3 +1,5 @@
+import type { WorkspaceManifest } from "./workspace";
+
 export function deterministicCheckoutArtifact() {
   return `<!doctype html>
 <html lang="en">
@@ -53,4 +55,23 @@ export function deterministicCheckoutArtifact() {
   </script>
 </body>
 </html>`;
+}
+
+/** A genuine multi-file project fixture used only at deterministic CI boundaries. */
+export function deterministicCheckoutWorkspace(): WorkspaceManifest {
+  return {
+    schemaVersion: 1,
+    framework: "Node.js HTTP application",
+    language: "JavaScript",
+    packageManager: "npm",
+    files: [
+      { path: "package.json", content: JSON.stringify({ name: "promptgolf-checkout-fixture", private: true, scripts: { build: "node scripts/build.mjs", start: "node server.mjs" } }, null, 2) },
+      { path: "server.mjs", content: "import http from 'node:http';import{readFile}from'node:fs/promises';const port=Number(process.env.PORT||3000);http.createServer(async(req,res)=>{if(req.url==='/health'){res.end('ok');return}try{const body=await readFile(new URL('./dist/index.html',import.meta.url));res.setHeader('content-type','text/html; charset=utf-8');res.end(body)}catch{res.statusCode=503;res.end('Run npm run build')}}).listen(port,'0.0.0.0');" },
+      { path: "scripts/build.mjs", content: "import{mkdir,copyFile}from'node:fs/promises';await mkdir('dist',{recursive:true});await copyFile('src/index.html','dist/index.html');console.log('built dist/index.html');" },
+      { path: "src/index.html", content: deterministicCheckoutArtifact() },
+    ],
+    commands: { install: "npm install --ignore-scripts", build: "npm run build", start: "npm start" },
+    runtime: { port: 3000, healthPath: "/health" },
+    entrypoints: { preview: "src/index.html", manifest: "package.json" },
+  };
 }
