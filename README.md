@@ -29,7 +29,7 @@
 
 ## About
 
-PromptGolf tests people on prompting skill and technical skill by executing their prompts against real software tasks, starting with full-stack web apps. An AI agent builds the app, then hidden checks, UI review, and scorecards expose whether the prompt actually captured real product behavior. In an era where everyone assumes AI can one-shot everything, PromptGolf proves the real bottleneck is often the person writing the prompt.
+PromptGolf tests prompting and domain skill by executing specs against real software tasks. An agent creates a framework-native multi-file workspace, then a sandbox builds and runs it. Evaluation records positive capability evidence through three pillars: behavior testing, spec completeness, and artifact adapter testing. It grades outcomes, never resemblance to a preferred implementation.
 
 The current demo is built for [Agnes AI Hackathon @ SMU](https://luma.com/s9s8bjla). It shows how a vague prompt can pass visible requirements while failing hidden ecommerce checks, and how a stronger domain-aware spec survives those checks.
 
@@ -98,10 +98,10 @@ Then open <http://127.0.0.1:3000>.
 The submission path is intentionally real and provider-aware:
 
 1. The challenge form validates the prompt and starts a live run.
-2. Agnes 2.0 Flash generates a self-contained checkout artifact from the submitted spec.
-3. The sandbox serves the preview when available; otherwise the app reports the fallback state honestly.
-4. TokenRouter drafts evaluator posture when configured.
-5. Playwright scores the generated app and streams the evidence to `/live-runs/[id]`.
+2. The builder creates a validated framework workspace with manifests, files, and build/start metadata.
+3. The sandbox uploads, builds, and starts that project; unavailable providers remain honestly degraded.
+4. An artifact adapter discovers semantic controls/routes and maps them to canonical capabilities.
+5. Validated EvalSpecs collect positive behavior and requirement evidence; prohibited negative, mutation, fingerprint, and preferred-method strategies are rejected by policy.
 6. Seeded naive, structured, and expert scorecards remain available as stable reference runs.
 
 ## Provider Policy
