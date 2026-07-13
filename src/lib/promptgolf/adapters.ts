@@ -19,10 +19,9 @@ export type ProviderProbe = ProviderStatus & {
 };
 
 const DAYTONA_BASE_URL = process.env.DAYTONA_API_BASE_URL ?? "https://app.daytona.io/api";
-const AGNES_AI_BASE_URL = process.env.AGNES_AI_BASE_URL ?? "https://apihub.agnes-ai.com/v1";
-const TOKENROUTER_BASE_URL = process.env.TOKENROUTER_API_BASE_URL ?? "https://api.tokenrouter.com/v1";
-const TOKENROUTER_MODEL = process.env.TOKENROUTER_MODEL ?? "openai/gpt-5.4-mini";
-const AGNES_AI_MODEL = process.env.AGNES_AI_MODEL ?? "agnes-2.0-flash";
+const MOONSHOT_BASE_URL = process.env.MOONSHOT_BASE_URL ?? "https://api.moonshot.ai/v1";
+const MOONSHOT_MODEL = process.env.MOONSHOT_MODEL ?? "kimi-k2.6";
+const MOONSHOT_TEMPERATURE = 0.6;
 const PROVIDER_TIMEOUT_MS = boundedEnvNumber(process.env.PROMPTGOLF_PROVIDER_TIMEOUT_MS, 12_000, {
   min: 1_000,
   max: 60_000,
@@ -144,7 +143,7 @@ async function generateRawOpenAICompatibleText({
         { role: "user", content: prompt },
       ],
       max_tokens: PROVIDER_MAX_TOKENS,
-      temperature: 1,
+      temperature: MOONSHOT_TEMPERATURE,
       stream: false,
       ...extraBody,
     }),
@@ -188,25 +187,14 @@ export function getDaytonaAdapterStatus(): ProviderStatus {
   );
 }
 
-export function getTokenRouterAdapterStatus(): ProviderStatus {
+export function getMoonshotAdapterStatus(): ProviderStatus {
   return configuredStatus(
-    "TokenRouter",
-    "model gateway + usage ledger",
-    "TOKENROUTER_API_KEY",
-    "Live OpenAI-compatible gateway credentials are configured for cache-friendly test-draft generation, routed prompt feedback, and usage posture.",
-    "TOKENROUTER_API_KEY is not configured, so routed model feedback is unavailable.",
-    TOKENROUTER_MODEL,
-  );
-}
-
-export function getAgnesAdapterStatus(): ProviderStatus {
-  return configuredStatus(
-    "Agnes AI",
-    "live checkout builder + evaluator feedback",
-    "AGNES_AI_API_KEY",
-    "Live Agnes AI credentials are configured for checkout artifact generation, prompt feedback, and test-generation paths.",
-    "AGNES_AI_API_KEY is not configured, so Agnes-backed generation and feedback are unavailable.",
-    AGNES_AI_MODEL,
+    "Moonshot AI",
+    "live workspace builder + evaluator",
+    "MOONSHOT_API_KEY",
+    "Moonshot credentials are configured for evaluator drafts, prompt feedback, visual evaluation, and diagnosis.",
+    "MOONSHOT_API_KEY is not configured, so live model generation and evaluation are unavailable.",
+    MOONSHOT_MODEL,
   );
 }
 
@@ -221,15 +209,7 @@ export function getProviderStatuses(): ProviderStatus[] {
         "Default CLI/process model boundary through ai-sdk-provider-codex-cli. Codex is not used for AI SDK tool calls.",
     },
     getDaytonaAdapterStatus(),
-    getTokenRouterAdapterStatus(),
-    getAgnesAdapterStatus(),
-    {
-      name: "OpenAI",
-      role: "low-credit fallback",
-      mode: "fallback",
-      model: "gpt-4o-mini",
-      detail: "Reserved for specific fallback/tool-call paths when Agnes AI or TokenRouter is not the right fit.",
-    },
+    getMoonshotAdapterStatus(),
   ];
 }
 
@@ -293,12 +273,12 @@ export async function probeDaytonaStatus(): Promise<ProviderProbe> {
   }
 }
 
-export async function generateAgnesPromptFeedback(
+export async function generateMoonshotPromptFeedback(
   prompt: string,
   options: { system?: string; userPrompt?: string } = {},
 ): Promise<ProviderProbe> {
-  const base = getAgnesAdapterStatus();
-  const apiKey = process.env.AGNES_AI_API_KEY?.trim();
+  const base = getMoonshotAdapterStatus();
+  const apiKey = process.env.MOONSHOT_API_KEY?.trim();
 
   if (!apiKey) {
     return { ...base, status: "unavailable" };
@@ -309,7 +289,7 @@ export async function generateAgnesPromptFeedback(
       ...base,
       status: "connected",
       latencyMs: 1,
-      output: "Agnes feedback: this prompt is classified against checkout edge-case coverage.",
+      output: "Moonshot feedback: this prompt is classified against checkout edge-case coverage.",
     };
   }
 
@@ -319,12 +299,12 @@ export async function generateAgnesPromptFeedback(
   try {
     const text = await generateRawOpenAICompatibleText({
       apiKey,
-      baseUrl: AGNES_AI_BASE_URL,
-      model: AGNES_AI_MODEL,
+      baseUrl: MOONSHOT_BASE_URL,
+      model: MOONSHOT_MODEL,
       signal: controller.signal,
       system:
         options.system ??
-        "You are PromptGolf's concise Agnes AI evaluator. Give one sentence of prompt-quality feedback. Do not reveal hidden test answers beyond broad categories.",
+        "You are PromptGolf's concise evaluator. Give one sentence of prompt-quality feedback. Do not reveal hidden test answers beyond broad categories.",
       prompt: options.userPrompt ?? `Evaluate this ecommerce checkout challenge prompt in one sentence (max 35 words):\n\n${prompt.slice(0, 1600)}`,
     });
 
@@ -340,59 +320,7 @@ export async function generateAgnesPromptFeedback(
       mode: "degraded",
       status: "degraded",
       latencyMs: elapsedMs(start),
-      detail: `Agnes AI model call failed: ${sanitizeError(error)}. Feedback is reported as degraded.`,
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-export async function generateTokenRouterPromptFeedback(
-  prompt: string,
-  options: { system?: string; userPrompt?: string } = {},
-): Promise<ProviderProbe> {
-  const base = getTokenRouterAdapterStatus();
-  const apiKey = process.env.TOKENROUTER_API_KEY?.trim();
-
-  if (!apiKey) {
-    return { ...base, status: "unavailable" };
-  }
-
-  if (testProviderStubsEnabled()) {
-    return {
-      ...base,
-      status: "connected",
-      latencyMs: 1,
-      output: "TokenRouter feedback: routed model call recorded for prompt feedback and provider posture.",
-    };
-  }
-
-  const start = started();
-  const { controller, timeout } = abortAfter(PROVIDER_TIMEOUT_MS);
-
-  try {
-    const text = await generateRawOpenAICompatibleText({
-      apiKey,
-      baseUrl: TOKENROUTER_BASE_URL,
-      model: TOKENROUTER_MODEL,
-      signal: controller.signal,
-      system: options.system ?? "You are PromptGolf's routed model gateway. Give one sentence about prompt readiness for hidden ecommerce tests.",
-      prompt: options.userPrompt ?? `Summarize this prompt's hidden-test readiness in one short sentence:\n\n${prompt.slice(0, 1600)}`,
-    });
-
-    return {
-      ...base,
-      status: "connected",
-      latencyMs: elapsedMs(start),
-      output: text.trim().slice(0, 280),
-    };
-  } catch (error) {
-    return {
-      ...base,
-      mode: "degraded",
-      status: "degraded",
-      latencyMs: elapsedMs(start),
-      detail: `TokenRouter routed model call failed: ${sanitizeError(error)}. Gateway feedback is degraded, not simulated.`,
+      detail: `Moonshot model call failed: ${sanitizeError(error)}. Feedback is reported as degraded.`,
     };
   } finally {
     clearTimeout(timeout);
@@ -402,8 +330,7 @@ export async function generateTokenRouterPromptFeedback(
 export async function collectRunProviderState(prompt: string): Promise<ProviderProbe[]> {
   return Promise.all([
     probeDaytonaStatus(),
-    generateAgnesPromptFeedback(prompt),
-    generateTokenRouterPromptFeedback(prompt),
+    generateMoonshotPromptFeedback(prompt),
   ]);
 }
 
@@ -412,27 +339,7 @@ export async function generateLiveTestDrafts(specs: Array<{ title?: unknown }>) 
     ? specs.map((spec, index) => `${index + 1}. ${String(spec.title ?? `Spec ${index + 1}`)}`).join("\n")
     : "1. Promo codes trim and match case-insensitively\n2. Checkout locks while submitting";
 
-  const tokenRouter = await generateTokenRouterPromptFeedback(
-    `Create two concise Playwright test titles for these checkout specs. Return plain lines only.\n${source}`,
-    {
-      system: "You generate concise Playwright test titles for PromptGolf through TokenRouter. These repeated hidden-spec prompts are cache-friendly. Return plain lines only; no prose or numbering.",
-      userPrompt: `Create two concise Playwright test titles for these checkout specs. Return plain lines only.\n${source}`,
-    },
-  );
-
-  if (tokenRouter.status === "connected" && tokenRouter.output) {
-    return {
-      provider: tokenRouter,
-      tests: tokenRouter.output
-        .split(/\n+/)
-        .map((line) => line.replace(/^[-*\d.)\s]+/, "").trim())
-        .filter(Boolean)
-        .slice(0, 4)
-        .map((title, index) => ({ id: `tokenrouter-generated-${index + 1}`, title, code: "// Drafted through TokenRouter from stable natural-language specs; deterministic Playwright materializes and scores checks separately." })),
-    };
-  }
-
-  const agnes = await generateAgnesPromptFeedback(
+  const moonshot = await generateMoonshotPromptFeedback(
     `Create two concise Playwright test titles for these checkout specs. Return plain lines only.\n${source}`,
     {
       system: "You generate concise Playwright test titles for PromptGolf. Return plain lines only; no prose or numbering.",
@@ -440,20 +347,20 @@ export async function generateLiveTestDrafts(specs: Array<{ title?: unknown }>) 
     },
   );
 
-  if (agnes.status === "connected" && agnes.output) {
+  if (moonshot.status === "connected" && moonshot.output) {
     return {
-      provider: agnes,
-      tests: agnes.output
+      provider: moonshot,
+      tests: moonshot.output
         .split(/\n+/)
         .map((line) => line.replace(/^[-*\d.)\s]+/, "").trim())
         .filter(Boolean)
         .slice(0, 4)
-        .map((title, index) => ({ id: `agnes-generated-${index + 1}`, title, code: "// Fallback draft from live Agnes AI adapter; deterministic Playwright materializes and scores checks separately." })),
+        .map((title, index) => ({ id: `moonshot-generated-${index + 1}`, title, code: "// Drafted through Moonshot from stable natural-language specs; deterministic Playwright materializes and scores checks separately." })),
     };
   }
 
   return {
-    provider: agnes.status === "connected" ? agnes : tokenRouter,
+    provider: moonshot,
     tests: [],
   };
 }

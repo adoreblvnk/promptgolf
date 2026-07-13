@@ -1,5 +1,5 @@
 import { scoreRun, type ScoreBreakdown, type TestResult } from "./scoring";
-import { collectRunProviderState, getDaytonaAdapterStatus, getTokenRouterAdapterStatus, type ProviderProbe } from "./adapters";
+import { collectRunProviderState, getDaytonaAdapterStatus, getMoonshotAdapterStatus, type ProviderProbe } from "./adapters";
 
 export type Challenge = {
   slug: string;
@@ -489,14 +489,14 @@ const seededRunsBase = [
 
 export const runs: Run[] = seededRunsBase.map((run) => {
   const tests = makeTests(run.hiddenPassed);
-  const tokenRouter = getTokenRouterAdapterStatus();
+  const moonshot = getMoonshotAdapterStatus();
   const daytona = getDaytonaAdapterStatus();
   return {
     ...run,
     challengeSlug: "mini-checkout-promo-engine",
     provider: "Codex CLI",
     model: "gpt-5.5",
-    gateway: tokenRouter.mode === "live" ? `TokenRouter live gateway · ${tokenRouter.model}` : "TokenRouter unavailable · set TOKENROUTER_API_KEY",
+    gateway: moonshot.mode === "live" ? `Moonshot live model · ${moonshot.model}` : "Moonshot unavailable · set MOONSHOT_API_KEY",
     sandbox: daytona.mode === "live" ? "Live sandbox adapter configured" : "Sandbox unavailable · configure credentials",
     stages: makeStages(),
     tests,

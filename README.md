@@ -4,7 +4,7 @@
     LeetCode for agentic prompting: fewer prompts, more passing tests.
   </p>
   <p>
-    Built with Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, AI SDK, Agnes AI, TokenRouter, Codex CLI, and Playwright.
+    Built with Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, AI SDK, Moonshot AI, Daytona, Codex CLI, and Playwright.
   </p>
 </div>
 
@@ -41,7 +41,7 @@ The main challenge is a full-stack ecommerce checkout web app with cart items, q
 2. Start the Full Stack Ecommerce Checkout Web App challenge.
 3. Read the public brief and hidden-test teaser.
 4. Submit a prompt from the challenge page; the app starts a live run and redirects to `/live-runs/[id]`.
-5. Inspect the generated checkout preview, hidden-test replay, streaming log, sandbox posture, and TokenRouter/Agnes provider state.
+5. Inspect the generated checkout preview, hidden-test replay, streaming log, sandbox posture, and Moonshot provider state.
 6. Compare the seeded naive, structured, and expert reference runs on the leaderboard.
 
 ## Screenshots
@@ -61,7 +61,7 @@ The main challenge is a full-stack ecommerce checkout web app with cart items, q
 
 - Node.js 20+
 - npm
-- Optional provider keys for live Agnes AI, TokenRouter, and sandbox flows
+- `MOONSHOT_API_KEY` for live model calls and `DAYTONA_API_KEY` for sandbox execution
 
 ### Installation
 
@@ -100,7 +100,7 @@ The submission path is intentionally real and provider-aware:
 1. The challenge form validates the prompt and starts a live run.
 2. The builder creates a validated framework workspace with manifests, files, and build/start metadata.
 3. The sandbox uploads, builds, and starts that project; unavailable providers remain honestly degraded.
-4. An artifact adapter discovers semantic controls/routes and maps them to canonical capabilities.
+4. The workspace adapter maps executable declarations, while Playwright observes semantic controls and behavior in the running artifact.
 5. Validated EvalSpecs collect positive behavior and requirement evidence; prohibited negative, mutation, fingerprint, and preferred-method strategies are rejected by policy.
 6. Seeded naive, structured, and expert scorecards remain available as stable reference runs.
 
@@ -108,9 +108,9 @@ The submission path is intentionally real and provider-aware:
 
 - Codex CLI provider is the default because the ChatGPT/Codex subscription is unlimited and separate from limited OpenAI provider credits.
 - Codex does not support AI SDK tool calls, so current generation/evaluation boundaries do not depend on Codex tool calls.
-- OpenAI is only a fallback path or future tool-call path.
-- The sandbox runner, TokenRouter, and Agnes AI are behind live adapters. When keys exist, the app performs credentialed probes/model calls and reports connected or degraded state.
-- Agnes 2.0 Flash is the primary model path for checkout artifact generation and prompt feedback. TokenRouter uses `https://api.tokenrouter.com/v1` through an OpenAI-compatible adapter.
+- Moonshot AI is the sole live model provider for workspace generation, evaluator drafts, screenshot judgment, and prompt diagnosis.
+- Moonshot uses `https://api.moonshot.ai/v1` with `kimi-k2.7-code-highspeed` for workspace generation and `kimi-k2.6` for multimodal evaluation.
+- Daytona remains the isolated workspace build/start/preview sandbox.
 - Tests use stubbed provider boundaries so CI never needs or exposes real secrets.
 
 ## Key Routes

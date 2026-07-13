@@ -13,11 +13,13 @@ import { RunScheduler } from "./run-scheduler";
 import { MAX_PROVIDER_RESPONSE_BYTES, readBoundedResponseText } from "./provider-response";
 import { boundedEnvNumber } from "./env-number";
 
-const AGNES_AI_BASE_URL = process.env.AGNES_AI_BASE_URL ?? "https://apihub.agnes-ai.com/v1";
-const AGNES_AI_MODEL = process.env.AGNES_AI_MODEL ?? "agnes-2.0-flash";
+const MOONSHOT_BASE_URL = process.env.MOONSHOT_BASE_URL ?? "https://api.moonshot.ai/v1";
+const MOONSHOT_BUILDER_MODEL = process.env.MOONSHOT_BUILDER_MODEL ?? "kimi-k2.7-code-highspeed";
+const MOONSHOT_EVALUATION_MODEL = process.env.MOONSHOT_EVALUATION_MODEL ?? process.env.MOONSHOT_MODEL ?? "kimi-k2.6";
+const MOONSHOT_TEMPERATURE = 0.6;
 const GENERATION_TIMEOUT_MS = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_GENERATION_TIMEOUT_MS, 240_000, { min: 10_000, max: 600_000, integer: true });
 // Framework-native workspaces need substantially more output headroom than the
-// legacy single-document artifact. Agnes may also spend part of this budget on
+// legacy single-document artifact. The model may also spend part of this budget on
 // internal reasoning before emitting the JSON manifest.
 const GENERATION_MAX_TOKENS = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_GENERATION_MAX_TOKENS, 16_384, { min: 1_024, max: 32_768, integer: true });
 const EVALUATION_TIMEOUT_MS = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_EVALUATION_TIMEOUT_MS, 45_000, { min: 5_000, max: 180_000, integer: true });
@@ -220,10 +222,8 @@ async function generateViaOpenAICompatible(input: { credential: string; baseUrl:
       },
       body: JSON.stringify({
         model: input.model,
-        temperature: 0.25,
         max_tokens: GENERATION_MAX_TOKENS,
         stream: useStreaming,
-        chat_template_kwargs: { enable_thinking: false },
         messages: [
           {
             role: "system",
@@ -258,9 +258,9 @@ function extractJsonObject(text: string) {
   return JSON.parse(candidate.slice(start, end + 1)) as unknown;
 }
 
-async function generateAgnesJson(input: { system: string; content: unknown; maxTokens?: number; responseFormat?: Record<string, unknown> }) {
-  const apiKey = process.env.AGNES_AI_API_KEY?.trim();
-  if (!apiKey) throw new Error("AGNES_AI_API_KEY is not configured");
+async function generateMoonshotJson(input: { system: string; content: unknown; maxTokens?: number; responseFormat?: Record<string, unknown> }) {
+  const apiKey = process.env.MOONSHOT_API_KEY?.trim();
+  if (!apiKey) throw new Error("MOONSHOT_API_KEY is not configured");
 
   const controller = new AbortController();
   let timedOut = false;
@@ -270,7 +270,7 @@ async function generateAgnesJson(input: { system: string; content: unknown; maxT
   }, EVALUATION_TIMEOUT_MS);
 
   try {
-    const response = await fetch(joinUrl(AGNES_AI_BASE_URL, "/chat/completions"), {
+    const response = await fetch(joinUrl(MOONSHOT_BASE_URL, "/chat/completions"), {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -278,11 +278,12 @@ async function generateAgnesJson(input: { system: string; content: unknown; maxT
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: AGNES_AI_MODEL,
-        temperature: 0.2,
+        model: MOONSHOT_EVALUATION_MODEL,
+        temperature: MOONSHOT_TEMPERATURE,
         max_tokens: input.maxTokens ?? EVALUATION_MAX_TOKENS,
         stream: false,
-        ...(input.responseFormat ? { response_format: input.responseFormat } : {}),
+        thinking: { type: "disabled" },
+        ...(input.responseFormat ? { response_format: { type: "json_object" } } : {}),
         messages: [
           { role: "system", content: input.system },
           { role: "user", content: input.content },
@@ -299,12 +300,12 @@ async function generateAgnesJson(input: { system: string; content: unknown; maxT
       data = undefined;
     }
 
-    if (!response.ok) throw new Error(`Agnes AI HTTP ${response.status}: ${raw.slice(0, 220)}`);
+    if (!response.ok) throw new Error(`Moonshot AI HTTP ${response.status}: ${raw.slice(0, 220)}`);
     const text = extractChatContent(data);
-    if (!text.trim()) throw new Error("Agnes AI returned no evaluator content");
+    if (!text.trim()) throw new Error("Moonshot AI returned no evaluator content");
     return extractJsonObject(text);
   } catch (error) {
-    if (timedOut) throw new Error(`Agnes AI evaluation exceeded ${Math.round(EVALUATION_TIMEOUT_MS / 1000)}s timeout`);
+    if (timedOut) throw new Error(`Moonshot AI evaluation exceeded ${Math.round(EVALUATION_TIMEOUT_MS / 1000)}s timeout`);
     throw error;
   } finally {
     clearTimeout(timeout);
@@ -319,24 +320,24 @@ function styleResultFrom(data: unknown, id: string, fallbackLabel: string): Live
   if (typeof data !== "object" || data === null || !("styleTests" in data) || !Array.isArray(data.styleTests)) return undefined;
   const match = data.styleTests.find((item) => typeof item === "object" && item !== null && "id" in item && item.id === id);
   if (typeof match !== "object" || match === null) return undefined;
-  const note = "note" in match && typeof match.note === "string" ? match.note : "Agnes AI screenshot judge returned a style verdict.";
+  const note = "note" in match && typeof match.note === "string" ? match.note : "Moonshot AI screenshot judge returned a style verdict.";
   return { id, label: "label" in match && typeof match.label === "string" ? match.label : fallbackLabel, category: "style", passed: booleanFrom("passed" in match ? match.passed : false), note: note.slice(0, 300) };
 }
 
-async function evaluateStyleWithAgnes(id: string, url: string): Promise<LiveRunTestResult[]> {
-  appendLiveRunEvent(id, "score", "info", "Capturing desktop and mobile Playwright screenshots for Agnes AI UI/UX evaluation.");
+async function evaluateStyleWithMoonshot(id: string, url: string): Promise<LiveRunTestResult[]> {
+  appendLiveRunEvent(id, "score", "info", "Capturing desktop and mobile Playwright screenshots for Moonshot AI UI/UX evaluation.");
   const evidence = await captureVisualEvidence(url);
 
   if (stubsEnabled()) {
-    appendLiveRunEvent(id, "score", "success", "CI stub mode: using deterministic Agnes-style UI/UX verdicts for screenshot scoring.");
-    return STYLE_TESTS.map((test) => ({ ...test, passed: true, note: "Stubbed Agnes UI/UX judge: generated checkout has clear hierarchy and usable responsive controls." }));
+    appendLiveRunEvent(id, "score", "success", "CI stub mode: using deterministic Moonshot-style UI/UX verdicts for screenshot scoring.");
+    return STYLE_TESTS.map((test) => ({ ...test, passed: true, note: "Stubbed Moonshot UI/UX judge: generated checkout has clear hierarchy and usable responsive controls." }));
   }
 
   try {
-    appendLiveRunEvent(id, "score", "info", "Asking Agnes AI to judge UI/UX from the captured screenshots.");
-    const data = await generateAgnesJson({
+    appendLiveRunEvent(id, "score", "info", "Asking Moonshot AI to judge UI/UX from the captured screenshots.");
+    const data = await generateMoonshotJson({
       system:
-        "You are PromptGolf's Agnes AI screenshot evaluator. Judge only the rendered checkout UI from the screenshots. Reward a premium finished consumer checkout: clear hierarchy, tactile double-bezel/card structure, refined spacing, readable totals, strong CTA, visible states, non-generic styling, no gradient text, no sloppy Bootstrap-like layout. Return strict JSON with styleTests for exactly style-visual-hierarchy and style-mobile-usability. Each item needs id, label, passed boolean, and note. Do not use markdown.",
+        "You are PromptGolf's screenshot evaluator. Judge only the rendered checkout UI from the screenshots. Reward a premium finished consumer checkout: clear hierarchy, tactile double-bezel/card structure, refined spacing, readable totals, strong CTA, visible states, non-generic styling, no gradient text, no sloppy Bootstrap-like layout. Return strict JSON with styleTests for exactly style-visual-hierarchy and style-mobile-usability. Each item needs id, label, passed boolean, and note. Do not use markdown.",
       content: [
         {
           type: "text",
@@ -347,13 +348,13 @@ async function evaluateStyleWithAgnes(id: string, url: string): Promise<LiveRunT
       ],
     });
 
-    const tests = STYLE_TESTS.map((test) => styleResultFrom(data, test.id, test.label) ?? { ...test, passed: false, note: "Agnes AI did not return a valid verdict for this style check." });
+    const tests = STYLE_TESTS.map((test) => styleResultFrom(data, test.id, test.label) ?? { ...test, passed: false, note: "Moonshot AI did not return a valid verdict for this style check." });
     tests.forEach((test) => appendLiveRunEvent(id, "score", test.passed ? "success" : "error", `${test.passed ? "PASS" : "FAIL"}: ${test.label} - ${sanitizeLog(test.note)}`));
     return tests;
   } catch (error) {
     const message = sanitizeLog(error instanceof Error ? error.message : String(error));
-    appendLiveRunEvent(id, "score", "warning", `Agnes AI screenshot evaluation degraded: ${message}`);
-    return STYLE_TESTS.map((test) => ({ ...test, passed: false, note: `Agnes AI screenshot evaluation unavailable: ${message}` }));
+    appendLiveRunEvent(id, "score", "warning", `Moonshot AI screenshot evaluation degraded: ${message}`);
+    return STYLE_TESTS.map((test) => ({ ...test, passed: false, note: `Moonshot AI screenshot evaluation unavailable: ${message}` }));
   }
 }
 
@@ -378,7 +379,7 @@ function diagnosisFrom(data: unknown): LiveRunSkillDiagnosis | undefined {
   return parsed.data;
 }
 
-async function diagnosePromptWithAgnes(id: string, prompt: string, tests: LiveRunTestResult[], score: ReturnType<typeof scoreTests>): Promise<LiveRunSkillDiagnosis> {
+async function diagnosePromptWithMoonshot(id: string, prompt: string, tests: LiveRunTestResult[], score: ReturnType<typeof scoreTests>): Promise<LiveRunSkillDiagnosis> {
   if (stubsEnabled()) {
     return {
       verdict: score.categories.find((category) => category.category === "hidden")?.passed === 3 ? "balanced" : "technical",
@@ -391,9 +392,9 @@ async function diagnosePromptWithAgnes(id: string, prompt: string, tests: LiveRu
   }
 
   try {
-    appendLiveRunEvent(id, "score", "info", "Running Agnes-backed prompt analysis against prompting skill and technical/domain gaps.");
+    appendLiveRunEvent(id, "score", "info", "Running Moonshot-backed prompt analysis against prompting skill and technical/domain gaps.");
     const compactResults = tests.map((test) => ({ id: test.id, category: test.category, passed: test.passed, note: test.note.slice(0, 180) }));
-    const data = await generateAgnesJson({
+    const data = await generateMoonshotJson({
       system:
         "You are PromptGolf's concise skill diagnostician. Score the submitted prompt, not the generated app alone. Decide whether failures mainly show prompting skill gaps, technical/domain knowledge gaps, or a balanced mix. Do not reveal hidden test answers verbatim. Return only the requested structured object.",
       content: `Prompt submitted by contestant:\n${prompt.slice(0, 5000)}\n\nOverall and category score:\n${JSON.stringify(score)}\n\nFailed and passed evaluator results:\n${JSON.stringify(compactResults)}\n\nScoring rubric: promptingScore measures clarity, specificity, and testable acceptance criteria. technicalScore measures encoded product/domain engineering knowledge. Both are integers from 0 to 10. Keep feedback concise enough for a scorecard panel.`,
@@ -410,7 +411,7 @@ async function diagnosePromptWithAgnes(id: string, prompt: string, tests: LiveRu
     };
   } catch (error) {
     const message = sanitizeLog(error instanceof Error ? error.message : String(error));
-    appendLiveRunEvent(id, "score", "warning", `Agnes-backed prompt analysis degraded: ${message}`);
+    appendLiveRunEvent(id, "score", "warning", `Moonshot-backed prompt analysis degraded: ${message}`);
     return {
       verdict: "degraded",
       promptingScore: 0,
@@ -429,21 +430,21 @@ async function generateArtifact(id: string, prompt: string) {
     return deterministicCheckoutWorkspace();
   }
 
-  const agnesKey = process.env.AGNES_AI_API_KEY?.trim();
-  if (agnesKey) {
+  const moonshotKey = process.env.MOONSHOT_API_KEY?.trim();
+  if (moonshotKey) {
     try {
-      appendLiveRunEvent(id, "generate", "info", `Building a framework-native project workspace with Agnes AI (${AGNES_AI_MODEL}).`);
-      const workspace = await generateViaOpenAICompatible({ credential: agnesKey, baseUrl: AGNES_AI_BASE_URL, model: AGNES_AI_MODEL, provider: "Agnes AI", prompt });
-      updateLiveRun(id, { providerMode: `Agnes AI live · ${AGNES_AI_MODEL}` });
+      appendLiveRunEvent(id, "generate", "info", `Building a framework-native project workspace with Moonshot AI (${MOONSHOT_BUILDER_MODEL}).`);
+      const workspace = await generateViaOpenAICompatible({ credential: moonshotKey, baseUrl: MOONSHOT_BASE_URL, model: MOONSHOT_BUILDER_MODEL, provider: "Moonshot AI", prompt });
+      updateLiveRun(id, { providerMode: `Moonshot AI live · ${MOONSHOT_BUILDER_MODEL}` });
       appendLiveRunEvent(id, "generate", "success", `Builder returned ${workspaceSummary(workspace)}. It will be evaluated as generated with no repair.`);
       return workspace;
     } catch (error) {
-      updateLiveRun(id, { providerMode: "Agnes AI live generation failed" });
-      throw new Error(`Agnes AI live generation failed without repair fallback: ${sanitizeLog(error instanceof Error ? error.message : String(error))}`);
+      updateLiveRun(id, { providerMode: "Moonshot AI live generation failed" });
+      throw new Error(`Moonshot AI live generation failed without repair fallback: ${sanitizeLog(error instanceof Error ? error.message : String(error))}`);
     }
   } else {
-    updateLiveRun(id, { providerMode: "Agnes AI unavailable" });
-    throw new Error("AGNES_AI_API_KEY is not configured. Live demo mode does not use deterministic repair artifacts.");
+    updateLiveRun(id, { providerMode: "Moonshot AI unavailable" });
+    throw new Error("MOONSHOT_API_KEY is not configured. Live demo mode does not use deterministic repair artifacts.");
   }
 }
 
@@ -562,14 +563,14 @@ PY`,
   }
 }
 
-async function generateTokenRouterEvaluatorDrafts(id: string) {
-  appendLiveRunEvent(id, "test", "info", "Routing functional and hidden evaluator specs through TokenRouter before deterministic Playwright scoring.");
+async function generateMoonshotEvaluatorDrafts(id: string) {
+  appendLiveRunEvent(id, "test", "info", "Drafting functional and hidden evaluator titles with Moonshot before deterministic Playwright scoring.");
   const draft = await generateLiveTestDrafts(checkoutEvaluatorSpecs.map((spec) => ({ title: `${spec.label}: ${spec.intent}` })));
-  if (draft.provider.name !== "TokenRouter" || draft.provider.status !== "connected" || draft.tests.length === 0) {
-    throw new Error(`TokenRouter evaluator draft generation was unavailable; provider=${draft.provider.name}, status=${draft.provider.status}. Live demo mode requires TokenRouter for cache-friendly test drafts.`);
+  if (draft.provider.name !== "Moonshot AI" || draft.provider.status !== "connected" || draft.tests.length === 0) {
+    throw new Error(`Moonshot evaluator draft generation was unavailable; provider=${draft.provider.name}, status=${draft.provider.status}.`);
   }
-  appendLiveRunEvent(id, "test", "success", `TokenRouter generated ${draft.tests.length} cache-friendly Playwright evaluator draft${draft.tests.length === 1 ? "" : "s"}; deterministic Playwright will execute the validated spec materialization.`);
-  draft.tests.slice(0, 3).forEach((test) => appendLiveRunEvent(id, "test", "info", `TokenRouter draft: ${sanitizeLog(test.title)}`));
+  appendLiveRunEvent(id, "test", "success", `Moonshot generated ${draft.tests.length} Playwright evaluator draft${draft.tests.length === 1 ? "" : "s"}; deterministic Playwright will execute the validated spec materialization.`);
+  draft.tests.slice(0, 3).forEach((test) => appendLiveRunEvent(id, "test", "info", `Moonshot draft: ${sanitizeLog(test.title)}`));
 }
 
 async function runPlaywright(id: string, url: string) {
@@ -601,7 +602,7 @@ async function executeLiveRun(id: string, origin: string) {
   if (!run) return;
   try {
     updateLiveRun(id, { status: "running" });
-    appendLiveRunEvent(id, "generate", "info", "Starting live artifact generation. Provider probes are deferred so they do not compete with the Agnes builder call.");
+    appendLiveRunEvent(id, "generate", "info", "Starting live artifact generation. Provider probes are deferred so they do not compete with the Moonshot builder call.");
     const workspace = await generateArtifact(id, run.prompt);
     const canonical = adaptWorkspace(workspace);
     updateLiveRun(id, { artifactWorkspace: workspace });
@@ -613,12 +614,12 @@ async function executeLiveRun(id: string, origin: string) {
     if (!daytonaPreview) updateLiveRun(id, { previewUrl: localPreview, previewLabel: stubsEnabled() ? "Local generated artifact · CI stub" : "Local generated artifact · explicit sandbox fallback" });
 
     const testUrl = daytonaPreview ?? localPreview;
-    await generateTokenRouterEvaluatorDrafts(id);
+    await generateMoonshotEvaluatorDrafts(id);
     const browserTests = await runPlaywright(id, testUrl);
-    const styleTests = await evaluateStyleWithAgnes(id, testUrl);
+    const styleTests = await evaluateStyleWithMoonshot(id, testUrl);
     const tests = [...browserTests, ...styleTests];
     const score = scoreTests(tests);
-    const diagnosis = await diagnosePromptWithAgnes(id, run.prompt, tests, score);
+    const diagnosis = await diagnosePromptWithMoonshot(id, run.prompt, tests, score);
     updateLiveRun(id, { status: "completed", stage: "completed", tests, score, diagnosis });
     appendLiveRunEvent(id, "score", "success", `Live evaluation completed: ${score.passed}/${score.total} checks passed (${score.finalScore}). Functional ${score.categories[0].passed}/${score.categories[0].total}; hidden ${score.categories[1].passed}/${score.categories[1].total}; UI/UX ${score.categories[2].passed}/${score.categories[2].total}.`);
     appendLiveRunEvent(id, "completed", "success", "Run completed from generated artifact and real browser test results.");
