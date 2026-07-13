@@ -5,6 +5,7 @@ import { RunQueueFullError } from "@/lib/promptgolf/run-scheduler";
 import { readBoundedJson } from "@/lib/promptgolf/request-json";
 import { consumeRateLimit, rateLimitResponse, requestClientKey } from "@/lib/promptgolf/rate-limit";
 import { isTrustedMutationRequest, untrustedMutationResponse } from "@/lib/promptgolf/request-origin";
+import { LiveRunCapacityError } from "@/lib/promptgolf/live-run-store";
 
 export const runtime = "nodejs";
 
@@ -26,9 +27,9 @@ export async function POST(request: NextRequest) {
   try {
     run = startLiveRun(input.data);
   } catch (error) {
-    if (error instanceof RunQueueFullError) {
+    if (error instanceof RunQueueFullError || error instanceof LiveRunCapacityError) {
       return NextResponse.json(
-        { error: error.message, code: "run-queue-full" },
+        { error: error.message, code: error instanceof RunQueueFullError ? "run-queue-full" : "run-store-full" },
         { status: 429, headers: { "Retry-After": "30" } },
       );
     }

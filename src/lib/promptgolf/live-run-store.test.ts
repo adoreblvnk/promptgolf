@@ -1,16 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { appendLiveRunEvent, createLiveRun, getLiveRun, MAX_EVENT_MESSAGE_CHARS, subscribeToLiveRun } from "./live-run-store";
+import { appendLiveRunEvent, createLiveRun, deleteLiveRun, getLiveRun, MAX_EVENT_MESSAGE_CHARS, subscribeToLiveRun, updateLiveRun } from "./live-run-store";
 
 describe("process-local live run store bounds", () => {
-  it("uses unguessable run identifiers and evicts the oldest run at capacity", () => {
-    const runs = Array.from({ length: 101 }, (_, index) => createLiveRun({
-      prompt: `bounded prompt ${index}`,
-      challengeSlug: "mini-checkout-promo-engine",
-    }));
+  it("uses unguessable run identifiers and evicts the oldest terminal run at capacity", () => {
+    const runs = Array.from({ length: 101 }, (_, index) => {
+      const run = createLiveRun({ prompt: `bounded prompt ${index}`, challengeSlug: "mini-checkout-promo-engine" });
+      updateLiveRun(run.id, { status: "completed" });
+      return run;
+    });
 
     expect(runs[0].id).toMatch(/^live-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
     expect(getLiveRun(runs[0].id)).toBeUndefined();
     expect(getLiveRun(runs.at(-1)!.id)).toBeDefined();
+    runs.forEach((run) => deleteLiveRun(run.id));
+  });
+
+  it("never evicts queued or running evaluations to admit a new run", () => {
+    const runs = Array.from({ length: 100 }, (_, index) => createLiveRun({
+      prompt: `active prompt ${index}`,
+      challengeSlug: "mini-checkout-promo-engine",
+    }));
+    updateLiveRun(runs[0].id, { status: "running" });
+
+    expect(() => createLiveRun({ prompt: "overflow", challengeSlug: "mini-checkout-promo-engine" })).toThrow(/capacity with active evaluations/i);
+    expect(getLiveRun(runs[0].id)?.status).toBe("running");
+    expect(getLiveRun(runs.at(-1)!.id)).toBeDefined();
+    runs.forEach((run) => deleteLiveRun(run.id));
   });
 
   it("retains only the newest 200 events with monotonic identifiers", () => {
