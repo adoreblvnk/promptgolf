@@ -1,79 +1,114 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Boxes, FlaskConical, ListChecks } from "lucide-react";
-import { AppShell, Eyebrow, Section } from "@/components/promptgolf/chrome";
-import { HeroComparator, type ComparatorSide } from "@/components/promptgolf/hero-comparator";
+import { AppShell, Section } from "@/components/promptgolf/chrome";
+import { HeroComparator, type ComparatorRuns } from "@/components/promptgolf/hero-comparator";
 import { challenges, runs, type Run } from "@/lib/promptgolf";
 
-const toSide = (run: Run): ComparatorSide => ({
-  label: run.label,
-  score: run.score.finalScore,
-  hiddenPassed: run.score.hiddenPassed,
-  hiddenTotal: run.score.hiddenTotal,
-  promptCount: run.promptCount,
-});
+const SEEDED_RUN_IDS = ["naive-checkout", "structured-checkout", "expert-checkout"] as const;
+
+function requireSeededRun(id: (typeof SEEDED_RUN_IDS)[number]): Run {
+  const run = runs.find((candidate) => candidate.id === id);
+  if (!run) throw new Error(`Landing comparator requires seeded run "${id}".`);
+  return run;
+}
 
 export default function Home() {
-  const ranked = [...runs].sort((a, b) => b.score.finalScore - a.score.finalScore);
-  const naiveRun = runs.find((run) => run.id === "naive-checkout") ?? ranked[ranked.length - 1];
-  const expertRun = runs.find((run) => run.id === "expert-checkout") ?? ranked[0];
-  const challenge = challenges[0];
+  const challenge = challenges.find((item) => item.slug === "mini-checkout-promo-engine") ?? challenges[0];
+  const comparatorRuns: ComparatorRuns = [
+    requireSeededRun(SEEDED_RUN_IDS[0]),
+    requireSeededRun(SEEDED_RUN_IDS[1]),
+    requireSeededRun(SEEDED_RUN_IDS[2]),
+  ];
 
   return (
-    <AppShell className="overflow-hidden [background-image:url('/promptgolf-hero-bg.png')] [background-position:center] [background-repeat:no-repeat] [background-size:cover]">
-      <Section className="relative grid items-center gap-12 overflow-hidden pb-14 pt-16 lg:grid-cols-[1.05fr_0.95fr]">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-r from-paper via-paper/72 to-paper/18" />
-        <div className="relative z-10">
-          <Eyebrow>Live benchmark</Eyebrow>
-          <h1 className="mt-7 max-w-xl text-5xl font-semibold tracking-[-0.04em] text-balance text-ink sm:text-6xl lg:text-7xl">
-            Your models don&apos;t have a skill issue. <span className="text-accent">You do.</span>
-          </h1>
-          <p className="mt-5 max-w-xl text-3xl font-semibold tracking-[-0.03em] text-accent sm:text-4xl">Start promptmaxxing.</p>
-          <p className="mt-6 max-w-lg text-lg leading-8 text-ink-soft">
-            PromptGolf benchmarks the spec writers, not the models. An agent builds a real project; positive capability evidence shows whether your spec survives reality.
-          </p>
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href={`/challenges/${challenge.slug}`}
-              className="group inline-flex min-h-11 items-center justify-center gap-2.5 rounded-md bg-accent px-6 font-medium text-paper transition-[background-color,transform] duration-200 ease-out hover:bg-accent/90 active:scale-[0.99]"
-            >
-              Try the challenge <ArrowRight className="size-4 transition-transform duration-200 ease-out group-hover:translate-x-1" />
-            </Link>
-            <Link
-              href="/leaderboard"
-              className="inline-flex min-h-11 items-center justify-center rounded-md border border-rule bg-card px-6 font-medium text-ink transition-colors duration-200 ease-out hover:bg-ink/[0.04]"
-            >
-              View leaderboard
-            </Link>
-          </div>
-        </div>
-        <div className="relative z-10">
-          <HeroComparator naive={toSide(naiveRun)} expert={toSide(expertRun)} />
-        </div>
-      </Section>
+    <AppShell className="overflow-x-clip">
+      <main>
+        <Section className="pb-16 pt-14 sm:pb-20 sm:pt-20">
+          <div className="grid gap-12 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)] lg:items-end lg:gap-16">
+            <div>
+              <p className="font-mono text-xs font-medium text-accent">PromptGolf / controlled agent benchmark</p>
+              <h1 className="mt-6 max-w-4xl text-5xl font-semibold leading-[0.98] tracking-[-0.04em] text-balance text-ink sm:text-6xl lg:text-[5rem]">
+                Same agent. Same task. Different specification.
+              </h1>
+              <p className="mt-7 max-w-2xl text-xl font-medium leading-8 tracking-[-0.02em] text-ink-soft sm:text-2xl sm:leading-9">
+                AI made building abundant. Reliable judgment is still scarce.
+              </p>
+              <p className="mt-5 max-w-2xl text-base leading-7 text-ink-soft">
+                PromptGolf holds the machine constant and changes the human-written spec. Hidden tests reveal whether the generated product only looks complete or survives production behavior.
+              </p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href={`/challenges/${challenge.slug}`}
+                  className="group inline-flex min-h-11 items-center justify-center gap-3 rounded-md bg-accent px-5 text-sm font-semibold text-paper transition-[background-color,transform] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-accent/90 active:scale-[0.99]"
+                >
+                  Play the checkout challenge
+                  <ArrowRight className="size-4 transition-transform duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-1" aria-hidden="true" />
+                </Link>
+                <Link
+                  href="/runs/expert-checkout"
+                  className="inline-flex min-h-11 items-center justify-center rounded-md border border-rule-strong px-5 text-sm font-semibold text-ink transition-colors duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-white/[0.04]"
+                >
+                  Inspect the expert run
+                </Link>
+              </div>
+            </div>
 
-      <Section className="pb-16 pt-12">
-        <div className="overflow-hidden rounded-lg border border-rule bg-card">
-          <div className="grid divide-y divide-rule md:grid-cols-3 md:divide-x md:divide-y-0">
-            <PipeStep icon={<FlaskConical className="size-5" />} step="01" title="Behavior evidence" text="Examples, state-machine traces, and property checks observe what the built product can do." />
-            <PipeStep icon={<ListChecks className="size-5" />} step="02" title="Spec completeness" text="Requirement trees connect each positive product claim to observable evidence." />
-            <PipeStep icon={<Boxes className="size-5" />} step="03" title="Artifact adapters" text="Framework-aware discovery maps web, API, and CLI outputs to one capability protocol." />
+            <aside aria-label="Held-constant benchmark conditions" className="border-y border-rule-strong">
+              <p className="border-b border-rule py-3 font-mono text-xs font-medium text-accent">Held constant</p>
+              <ConstantRow label="Challenge" value="Full Stack Ecommerce Checkout Web App" />
+              <ConstantRow label="Builder" value="OpenAI gpt-5.4-mini" />
+              <ConstantRow label="Evaluator" value="Stored EvalSpecs + Playwright behavior" />
+            </aside>
           </div>
-        </div>
-      </Section>
+        </Section>
+
+        <Section className="pb-16 pt-4 sm:pb-24 sm:pt-6">
+          <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="max-w-2xl text-3xl font-semibold tracking-[-0.035em] text-balance text-ink sm:text-4xl">One product. Three levels of specification.</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">Each seeded reference pairs an authored checkout scenario with named production checks.</p>
+            </div>
+            <p className="max-w-sm font-mono text-xs leading-5 text-ink-muted sm:text-right">Structure is teachable. Domain judgment creates separation.</p>
+          </div>
+          <HeroComparator runs={comparatorRuns} />
+        </Section>
+
+        <Section className="border-t border-rule pb-10 pt-14 sm:pb-16 sm:pt-16">
+          <div className="grid gap-8 md:grid-cols-[0.8fr_1.2fr] md:gap-16">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-[-0.03em] text-ink">Evidence, not prompt aesthetics.</h2>
+              <p className="mt-4 max-w-md text-sm leading-6 text-ink-soft">The score follows observable product behavior. Methodology supports the judgment after the comparison makes the gap visible.</p>
+            </div>
+            <div className="divide-y divide-rule border-y border-rule">
+              <MethodRow icon={<FlaskConical className="size-4" />} title="Behavior evidence" text="Examples, state-machine traces, and properties test positive capabilities." />
+              <MethodRow icon={<ListChecks className="size-4" />} title="Spec completeness" text="Requirement trees connect product claims to observable evidence." />
+              <MethodRow icon={<Boxes className="size-4" />} title="Artifact adapters" text="Framework output maps to one canonical capability protocol." />
+            </div>
+          </div>
+        </Section>
+      </main>
     </AppShell>
   );
 }
 
-function PipeStep({ icon, step, title, text }: { icon: ReactNode; step: string; title: string; text: string }) {
+function ConstantRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="p-6 md:p-7">
-      <div className="flex items-center justify-between">
-        <div className="flex size-10 items-center justify-center rounded-md bg-ink text-paper">{icon}</div>
-        <span className="font-mono text-xs text-ink-muted">{step}</span>
+    <div className="grid grid-cols-[5.5rem_1fr] gap-4 border-b border-rule py-4 last:border-b-0">
+      <span className="font-mono text-xs text-ink-muted">{label}</span>
+      <span className="text-sm font-medium leading-5 text-ink">{value}</span>
+    </div>
+  );
+}
+
+function MethodRow({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
+  return (
+    <div className="grid gap-3 py-5 sm:grid-cols-[1.1fr_1.4fr] sm:items-start sm:gap-8">
+      <div className="flex items-center gap-3 text-sm font-semibold text-ink">
+        <span className="text-accent" aria-hidden="true">{icon}</span>
+        {title}
       </div>
-      <h3 className="mt-5 text-lg font-semibold text-ink">{title}</h3>
-      <p className="mt-2.5 text-sm leading-6 text-ink-soft">{text}</p>
+      <p className="text-sm leading-6 text-ink-soft">{text}</p>
     </div>
   );
 }
