@@ -20,6 +20,7 @@
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Execution](#execution)
+- [Production deployment](#production-deployment)
 - [Usage](#usage)
 - [Provider Policy](#provider-policy)
 - [Key Routes](#key-routes)
@@ -92,6 +93,10 @@ npm run start
 ```
 
 Then open <http://127.0.0.1:3000>.
+
+## Production deployment
+
+See [Deploy PromptGolf on Google Cloud](docs/GCP_DEPLOYMENT.md) for the Cloud Run, Cloud Tasks, Firestore, Cloud Storage, Secret Manager, DNS cutover, verification, and rollback guide.
 
 ## Usage
 
