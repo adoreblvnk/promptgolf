@@ -9,8 +9,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
   const run = getLiveRun(id);
   if (!run?.artifactWorkspace) return NextResponse.json({ error: "Generated workspace is not ready yet." }, { status: 404 });
-  const preview = workspaceFile(run.artifactWorkspace, run.artifactWorkspace.entrypoints.preview);
-  if (!preview) return NextResponse.json({ error: "Workspace preview entrypoint is missing." }, { status: 500 });
+  const staticPreview = run.artifactWorkspace.entrypoints.staticPreview;
+  if (!staticPreview) return NextResponse.json({ error: "This workspace requires its framework runtime preview." }, { status: 409 });
+  const preview = workspaceFile(run.artifactWorkspace, staticPreview);
+  if (!preview) return NextResponse.json({ error: "Workspace static preview entrypoint is missing." }, { status: 500 });
   return new Response(preview, {
     headers: {
       "Content-Type": "text/html; charset=utf-8",

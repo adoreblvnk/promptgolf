@@ -34,9 +34,9 @@ const relativePath = z.string().min(1).max(240).superRefine((value, context) => 
   }
 });
 
-const previewPath = relativePath.refine(
+const staticPreviewPath = relativePath.refine(
   (value) => /\.html?$/i.test(value),
-  "Workspace preview entrypoints must reference a browser-renderable HTML file.",
+  "Static preview entrypoints must reference a browser-renderable HTML file.",
 );
 
 export const workspaceManifestSchema = z.object({
@@ -47,7 +47,11 @@ export const workspaceManifestSchema = z.object({
   files: z.array(z.object({ path: relativePath, content: fileContent })).min(2).max(200),
   commands: z.object({ install: command.optional(), build: command, start: command }),
   runtime: z.object({ port: z.number().int().min(1024).max(65535), healthPath }),
-  entrypoints: z.object({ preview: previewPath, manifest: relativePath }),
+  entrypoints: z.object({
+    preview: healthPath,
+    manifest: relativePath,
+    staticPreview: staticPreviewPath.optional(),
+  }),
 });
 
 export type WorkspaceManifest = z.infer<typeof workspaceManifestSchema>;
@@ -67,7 +71,10 @@ export function parseWorkspace(input: unknown): WorkspaceManifest {
     if (paths.has(file.path)) throw new Error(`Duplicate workspace path: ${file.path}`);
     paths.add(file.path);
   }
-  if (!paths.has(workspace.entrypoints.preview) || !paths.has(workspace.entrypoints.manifest)) throw new Error("Workspace entrypoints must reference included files.");
+  if (!paths.has(workspace.entrypoints.manifest)) throw new Error("Workspace manifest entrypoint must reference an included file.");
+  if (workspace.entrypoints.staticPreview && !paths.has(workspace.entrypoints.staticPreview)) {
+    throw new Error("Workspace static preview entrypoint must reference an included file.");
+  }
   return workspace;
 }
 

@@ -72,6 +72,6 @@ export function deterministicCheckoutWorkspace(): WorkspaceManifest {
     ],
     commands: { install: "npm install --ignore-scripts", build: "npm run build", start: "npm start" },
     runtime: { port: 3000, healthPath: "/health" },
-    entrypoints: { preview: "src/index.html", manifest: "package.json" },
+    entrypoints: { preview: "/", manifest: "package.json", staticPreview: "src/index.html" },
   };
 }

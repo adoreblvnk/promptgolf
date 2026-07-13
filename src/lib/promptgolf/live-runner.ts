@@ -3,10 +3,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
 import { collectRunProviderState, generateLiveTestDrafts } from "./adapters";
-import { CHECKOUT_REQUIRED_CONTRACT_MARKERS, checkoutEvaluatorSpecs } from "./evaluator-specs";
+import { checkoutEvaluatorSpecs } from "./evaluator-specs";
 import { deterministicCheckoutWorkspace } from "./live-run-fixture";
 import { adaptWorkspace } from "./artifact-adapter";
-import { parseWorkspace, workspaceFile, workspaceSummary, type WorkspaceManifest } from "./workspace";
+import { parseWorkspace, workspaceSummary, type WorkspaceManifest } from "./workspace";
 import { appendLiveRunEvent, createLiveRun, deleteLiveRun, getLiveRun, sanitizeLog, updateLiveRun, type LiveRunCategoryScore, type LiveRunSkillDiagnosis, type LiveRunTestCategory, type LiveRunTestResult } from "./live-run-store";
 import { captureVisualEvidence, evaluateSpecsWithPlaywright } from "./playwright-evaluator";
 import { RunScheduler } from "./run-scheduler";
@@ -16,7 +16,10 @@ import { boundedEnvNumber } from "./env-number";
 const AGNES_AI_BASE_URL = process.env.AGNES_AI_BASE_URL ?? "https://apihub.agnes-ai.com/v1";
 const AGNES_AI_MODEL = process.env.AGNES_AI_MODEL ?? "agnes-2.0-flash";
 const GENERATION_TIMEOUT_MS = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_GENERATION_TIMEOUT_MS, 240_000, { min: 10_000, max: 600_000, integer: true });
-const GENERATION_MAX_TOKENS = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_GENERATION_MAX_TOKENS, 4_200, { min: 256, max: 32_768, integer: true });
+// Framework-native workspaces need substantially more output headroom than the
+// legacy single-document artifact. Agnes may also spend part of this budget on
+// internal reasoning before emitting the JSON manifest.
+const GENERATION_MAX_TOKENS = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_GENERATION_MAX_TOKENS, 16_384, { min: 1_024, max: 32_768, integer: true });
 const EVALUATION_TIMEOUT_MS = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_EVALUATION_TIMEOUT_MS, 45_000, { min: 5_000, max: 180_000, integer: true });
 const EVALUATION_MAX_TOKENS = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_EVALUATION_MAX_TOKENS, 900, { min: 128, max: 8_192, integer: true });
 const DAYTONA_CREATE_TIMEOUT_SECONDS = boundedEnvNumber(process.env.PROMPTGOLF_DAYTONA_CREATE_TIMEOUT_SECONDS, 30, { min: 5, max: 120, integer: true });
@@ -107,11 +110,6 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, message: string):
   }
 }
 
-function observeArtifactContract(id: string, workspace: WorkspaceManifest, provider: string) {
-  const html = workspaceFile(workspace, workspace.entrypoints.preview) ?? "";
-  const missingContract = CHECKOUT_REQUIRED_CONTRACT_MARKERS.filter((snippet) => !html.toLowerCase().includes(snippet.toLowerCase()));
-  if (missingContract.length) appendLiveRunEvent(id, "generate", "warning", `${provider} artifact missed checkout contract markers: ${missingContract.slice(0, 5).join(", ")}${missingContract.length > 5 ? "…" : ""}. The generated app will be evaluated as-is.`);
-}
 
 export async function probePreview(
   url: string,
@@ -225,11 +223,12 @@ async function generateViaOpenAICompatible(input: { credential: string; baseUrl:
         temperature: 0.25,
         max_tokens: GENERATION_MAX_TOKENS,
         stream: useStreaming,
+        chat_template_kwargs: { enable_thinking: false },
         messages: [
           {
             role: "system",
             content:
-              "Act as an autonomous project builder. Return JSON only matching {schemaVersion:1,framework,language,packageManager,files:[{path,content}],commands:{install?,build,start},runtime:{port,healthPath},entrypoints:{preview,manifest}}. Create a genuine framework-native, multi-file full-stack checkout project in the framework requested by the contestant (default Next.js). Include package/framework manifest, source files, API/server behavior, and real build/start commands. entrypoints.preview must be an HTML file the evaluator can render directly as deterministic evidence. Never return a single-file project. Public brief: ecommerce checkout with quantities, promos, totals, tax, and confirmation. Implement exactly the contestant spec; do not silently add omitted edge cases.",
+              "Act as an autonomous project builder. Return JSON only matching {schemaVersion:1,framework,language,packageManager,files:[{path,content}],commands:{install?,build,start},runtime:{port,healthPath},entrypoints:{preview,manifest,staticPreview?}}. entrypoints.preview is a URL path served by the running framework, for example '/'; entrypoints.manifest is an included project file such as 'package.json'. staticPreview is optional and only names an included HTML file when the project genuinely has one. Create a genuine framework-native, multi-file full-stack checkout project in the framework requested by the contestant (default Next.js). Include package/framework manifest, source files, API/server behavior, a health route, and real build/start commands. Never return a single-file project or rendered HTML in an entrypoint field. Public brief: ecommerce checkout with quantities, promos, totals, tax, and confirmation. Implement exactly the contestant spec; do not silently add omitted edge cases.",
           },
           { role: "user", content: input.prompt.slice(0, 6000) },
         ],
@@ -435,7 +434,6 @@ async function generateArtifact(id: string, prompt: string) {
     try {
       appendLiveRunEvent(id, "generate", "info", `Building a framework-native project workspace with Agnes AI (${AGNES_AI_MODEL}).`);
       const workspace = await generateViaOpenAICompatible({ credential: agnesKey, baseUrl: AGNES_AI_BASE_URL, model: AGNES_AI_MODEL, provider: "Agnes AI", prompt });
-      observeArtifactContract(id, workspace, "Agnes AI");
       updateLiveRun(id, { providerMode: `Agnes AI live · ${AGNES_AI_MODEL}` });
       appendLiveRunEvent(id, "generate", "success", `Builder returned ${workspaceSummary(workspace)}. It will be evaluated as generated with no repair.`);
       return workspace;
@@ -450,8 +448,8 @@ async function generateArtifact(id: string, prompt: string) {
 }
 
 async function attemptDaytonaPreview(id: string, workspace: WorkspaceManifest) {
-  if (!workspaceFile(workspace, workspace.entrypoints.preview)) throw new Error("Workspace preview entrypoint is unavailable.");
   if (stubsEnabled()) {
+    if (!workspace.entrypoints.staticPreview) throw new Error("CI stub workspaces require a static preview entrypoint.");
     updateLiveRun(id, { sandboxMode: "CI stub · local artifact route" });
     appendLiveRunEvent(id, "sandbox", "info", "CI stub mode avoids sandbox network calls and uses the local artifact route.");
     return undefined;
@@ -545,10 +543,13 @@ PY`,
           : undefined;
     const previewUrl = previewUrlFrom(preview);
     if (previewUrl?.startsWith("http")) {
-      await waitForPreviewReady(id, previewUrl);
-      updateLiveRun(id, { sandboxMode: "Sandbox preview", previewUrl, previewLabel: "Sandbox preview" });
-      appendLiveRunEvent(id, "sandbox", "success", `Sandbox preview available and serving generated artifact: ${previewUrl}`);
-      return previewUrl;
+      const renderUrl = new URL(previewUrl);
+      renderUrl.pathname = workspace.entrypoints.preview;
+      const renderedPreviewUrl = renderUrl.toString();
+      await waitForPreviewReady(id, renderedPreviewUrl);
+      updateLiveRun(id, { sandboxMode: "Sandbox preview", previewUrl: renderedPreviewUrl, previewLabel: "Sandbox preview" });
+      appendLiveRunEvent(id, "sandbox", "success", `Sandbox preview available and serving the framework route: ${renderedPreviewUrl}`);
+      return renderedPreviewUrl;
     }
     throw new Error("Sandbox started but no preview URL was returned");
   } catch (error) {
