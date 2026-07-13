@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendLiveRunEvent, createLiveRun, getLiveRun, subscribeToLiveRun } from "./live-run-store";
+import { appendLiveRunEvent, createLiveRun, getLiveRun, MAX_EVENT_MESSAGE_CHARS, subscribeToLiveRun } from "./live-run-store";
 
 describe("process-local live run store bounds", () => {
   it("uses unguessable run identifiers and evicts the oldest run at capacity", () => {
@@ -22,6 +22,23 @@ describe("process-local live run store bounds", () => {
     expect(run.events).toHaveLength(200);
     expect(run.events[0].id).toBe(7);
     expect(run.events.at(-1)?.id).toBe(206);
+  });
+
+  it("bounds stored and broadcast event messages after redaction", () => {
+    const run = createLiveRun({ prompt: "message bound", challengeSlug: "mini-checkout-promo-engine" });
+    let broadcastMessage = "";
+    const unsubscribe = subscribeToLiveRun(run.id, (event) => {
+      broadcastMessage = event.message;
+    });
+
+    appendLiveRunEvent(run.id, "generate", "error", `token=sk-${"a".repeat(40)} ${"x".repeat(MAX_EVENT_MESSAGE_CHARS * 2)}`);
+    unsubscribe();
+
+    const storedMessage = run.events.at(-1)?.message ?? "";
+    expect(storedMessage).toHaveLength(MAX_EVENT_MESSAGE_CHARS);
+    expect(storedMessage).toMatch(/…$/);
+    expect(storedMessage).not.toContain("sk-");
+    expect(broadcastMessage).toBe(storedMessage);
   });
 
   it("bounds event-stream subscribers and releases capacity on unsubscribe", () => {

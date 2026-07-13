@@ -71,6 +71,7 @@ type Subscriber = (event: LiveRunEvent) => void;
 const globalKey = "__promptgolf_live_runs__";
 const MAX_RUNS = 100;
 const MAX_EVENTS_PER_RUN = 200;
+export const MAX_EVENT_MESSAGE_CHARS = 1_000;
 const MAX_SUBSCRIBERS_PER_RUN = 25;
 const MAX_TOTAL_SUBSCRIBERS = 100;
 
@@ -177,7 +178,9 @@ export function subscribeToLiveRun(id: string, subscriber: Subscriber) {
 }
 
 export function sanitizeLog(input: string) {
-  return redactSecrets(input);
+  const sanitized = redactSecrets(input, MAX_EVENT_MESSAGE_CHARS + 1);
+  if (sanitized.length <= MAX_EVENT_MESSAGE_CHARS) return sanitized;
+  return `${sanitized.slice(0, MAX_EVENT_MESSAGE_CHARS - 1)}…`;
 }
 
 // Demo note: this store is intentionally process-local and non-persistent.
