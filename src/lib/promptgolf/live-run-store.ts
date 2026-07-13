@@ -82,6 +82,13 @@ export class LiveRunSubscriberLimitError extends Error {
   }
 }
 
+export class LiveRunCapacityError extends Error {
+  constructor(message = "The live run store is at capacity with active evaluations. Retry shortly.") {
+    super(message);
+    this.name = "LiveRunCapacityError";
+  }
+}
+
 type LiveRunStore = {
   runs: Map<string, LiveRun>;
   subscribers: Map<string, Set<Subscriber>>;
@@ -96,8 +103,10 @@ function getStore(): LiveRunStore {
 function evictOldestRuns() {
   const store = getStore();
   while (store.runs.size >= MAX_RUNS) {
-    const oldestId = store.runs.keys().next().value as string | undefined;
-    if (!oldestId) return;
+    const oldestId = Array.from(store.runs.entries()).find(
+      ([, run]) => run.status === "completed" || run.status === "failed",
+    )?.[0];
+    if (!oldestId) throw new LiveRunCapacityError();
     store.runs.delete(oldestId);
     store.subscribers.delete(oldestId);
   }
