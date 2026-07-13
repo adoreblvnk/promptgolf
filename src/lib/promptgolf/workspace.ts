@@ -34,6 +34,11 @@ const relativePath = z.string().min(1).max(240).superRefine((value, context) => 
   }
 });
 
+const previewPath = relativePath.refine(
+  (value) => /\.html?$/i.test(value),
+  "Workspace preview entrypoints must reference a browser-renderable HTML file.",
+);
+
 export const workspaceManifestSchema = z.object({
   schemaVersion: z.literal(1),
   framework: z.string().min(1),
@@ -42,7 +47,7 @@ export const workspaceManifestSchema = z.object({
   files: z.array(z.object({ path: relativePath, content: fileContent })).min(2).max(200),
   commands: z.object({ install: command.optional(), build: command, start: command }),
   runtime: z.object({ port: z.number().int().min(1024).max(65535), healthPath }),
-  entrypoints: z.object({ preview: relativePath, manifest: relativePath }),
+  entrypoints: z.object({ preview: previewPath, manifest: relativePath }),
 });
 
 export type WorkspaceManifest = z.infer<typeof workspaceManifestSchema>;
