@@ -175,6 +175,7 @@ export function LiveRunView({ id }: { id: string }) {
   const latestTestsRef = useRef<LiveRunTestResult[]>([]);
 
   useEffect(() => {
+    if (run?.status === "completed" || run?.status === "failed") return;
     let cancelled = false;
     const refresh = async () => {
       const response = await fetch(`/api/live-runs/${id}`, { cache: "no-store" });
@@ -186,7 +187,7 @@ export function LiveRunView({ id }: { id: string }) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [id]);
+  }, [id, run?.status]);
 
   useEffect(() => {
     const source = new EventSource(`/api/live-runs/${id}/events`);
@@ -197,10 +198,12 @@ export function LiveRunView({ id }: { id: string }) {
       if (payload.type === "snapshot" && payload.run) {
         setRun(payload.run);
         setEvents(payload.run.events ?? []);
+        if (payload.run.status === "completed" || payload.run.status === "failed") source.close();
       }
       if (payload.type === "event" && payload.event) {
         const nextEvent = payload.event;
         setEvents((current) => (current.some((event) => event.id === nextEvent.id) ? current : [...current, nextEvent]));
+        if (nextEvent.stage === "completed" || nextEvent.stage === "failed") source.close();
       }
     };
     return () => source.close();
