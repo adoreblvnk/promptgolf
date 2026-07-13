@@ -1,5 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
-import { probePreview } from "./live-runner";
+import { builderLoopShouldStop, invalidatedBuilderEvidence, probePreview } from "./live-runner";
+
+describe("builder loop state", () => {
+  it("stops only after verified finalization, not merely after a rejected finalize call", () => {
+    expect(builderLoopShouldStop(false)).toBe(false);
+    expect(builderLoopShouldStop(true)).toBe(true);
+  });
+
+  it("invalidates build and runtime evidence after a workspace write", () => {
+    expect(invalidatedBuilderEvidence()).toEqual({
+      buildSucceeded: false,
+      appStarted: false,
+      healthVerified: false,
+      previewVerified: false,
+    });
+  });
+});
 
 describe("sandbox preview readiness probe", () => {
   it("accepts a bounded successful HTML document", async () => {

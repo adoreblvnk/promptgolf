@@ -78,8 +78,12 @@ function semanticCandidates(page: Page, key: string): Locator[] {
   }
 
   for (const label of config?.labels ?? []) {
-    candidates.push(page.getByLabel(pattern(label)).first());
-    candidates.push(page.getByRole("button", { name: pattern(label) }).first());
+    if (config?.css?.includes("input")) {
+      candidates.push(page.getByRole("textbox", { name: pattern(label) }).first());
+    } else if (!config?.css?.includes("button")) {
+      candidates.push(page.getByLabel(pattern(label)).first());
+    }
+    if (config?.css?.includes("button")) candidates.push(page.getByRole("button", { name: pattern(label) }).first());
   }
 
   if (config?.css?.includes("input")) {
@@ -282,6 +286,8 @@ export async function evaluateSpecsWithPlaywright(input: {
       page.setDefaultTimeout(3500);
       try {
         await page.goto(input.url, { waitUntil: "domcontentloaded", timeout: 10000 });
+        await page.waitForLoadState("networkidle", { timeout: 2000 }).catch(() => undefined);
+        await page.waitForTimeout(250);
         const result = await evaluateSpec(page, spec);
         results.push(result);
         input.onResult?.(result);
