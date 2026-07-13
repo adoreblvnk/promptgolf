@@ -53,6 +53,58 @@ test("landing has no horizontal overflow at a true 390px viewport", async ({ pag
   expect(dimensions.bodyWidth).toBeLessThanOrEqual(390);
 });
 
+test("landing navigation stays named, tappable, and contained at 320px", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto("/");
+
+  const navigation = page.getByRole("navigation", { name: "Primary navigation" });
+  const home = navigation.getByRole("link", { name: "PromptGolf home" });
+  const destinations = [
+    { name: "Problems", mobileLabel: "Problems" },
+    { name: "Leaderboard", mobileLabel: "Leaders" },
+    { name: "Runs", mobileLabel: "Runs" },
+    { name: "Methodology", mobileLabel: "Method" },
+  ];
+
+  await expect(navigation).toBeVisible();
+  await expect(home).toBeVisible();
+
+  const navigationBox = await navigation.boundingBox();
+  expect(navigationBox).not.toBeNull();
+  expect(navigationBox?.height).toBe(52);
+
+  for (const { name, mobileLabel } of destinations) {
+    const link = navigation.getByRole("link", { name });
+    await expect(link).toBeVisible();
+    await expect(link.locator("span").first()).toHaveText(mobileLabel);
+  }
+
+  for (const link of [home, ...destinations.map(({ name }) => navigation.getByRole("link", { name }))]) {
+    const box = await link.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+    expect(box?.width).toBeGreaterThanOrEqual(44);
+  }
+
+  const dimensions = await page.evaluate(() => ({
+    innerWidth: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    bodyWidth: document.body.scrollWidth,
+  }));
+
+  expect(dimensions.innerWidth).toBe(320);
+  expect(dimensions.documentWidth).toBeLessThanOrEqual(320);
+  expect(dimensions.bodyWidth).toBeLessThanOrEqual(320);
+
+  await page.setViewportSize({ width: 1024, height: 768 });
+  const player = navigation.getByRole("link", { name: "Player 01" });
+  await expect(player).toBeVisible();
+  const playerBox = await player.boundingBox();
+  expect(playerBox).not.toBeNull();
+  expect(playerBox?.height).toBeGreaterThanOrEqual(44);
+  expect(playerBox?.width).toBeGreaterThanOrEqual(44);
+});
+
 test("landing comparator removes state-change motion when reduced motion is preferred", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
