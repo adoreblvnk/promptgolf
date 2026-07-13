@@ -144,7 +144,7 @@ export WORKER_SA="promptgolf-worker@${PROJECT_ID}.iam.gserviceaccount.com"
 export TASK_INVOKER_SA="promptgolf-task-invoker@${PROJECT_ID}.iam.gserviceaccount.com"
 ```
 
-Grant the web service only the permissions needed to create/read run state, enqueue work, and read approved artifacts:
+Grant both runtime identities Firestore access. Firestore's predefined data roles are granted at project scope, so use a dedicated PromptGolf GCP project rather than sharing this project with unrelated workloads:
 
 ```bash
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
@@ -152,29 +152,11 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --role="roles/datastore.user"
 
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:${WEB_SA}" \
-  --role="roles/cloudtasks.enqueuer"
-
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:${WEB_SA}" \
-  --role="roles/storage.objectViewer"
-```
-
-Grant the worker access to run state, artifacts, and provider secrets:
-
-```bash
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${WORKER_SA}" \
   --role="roles/datastore.user"
-
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:${WORKER_SA}" \
-  --role="roles/storage.objectAdmin"
-
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:${WORKER_SA}" \
-  --role="roles/secretmanager.secretAccessor"
 ```
+
+Storage, Secret Manager, and Cloud Tasks grants are applied to their individual resources in the sections that create those resources. Do not grant their runtime roles project-wide.
 
 Allow the web service to attach the task invoker identity to Cloud Tasks requests:
 
@@ -213,6 +195,7 @@ id
 challengeSlug
 prompt                    server-only; never return from the public API
 status                    queued | running | completed | failed
+enqueueState              pending | accepted | unknown
 stage                     queued | generate | sandbox | test | score | completed | failed
 createdAt
 updatedAt
@@ -220,6 +203,7 @@ expiresAt                 Firestore timestamp used for TTL
 attempt
 leaseOwner
 leaseExpiresAt
+leaseGeneration           monotonically increasing fencing token
 providerMode
 sandboxMode
 previewTarget             server-only signed Daytona target
@@ -241,6 +225,10 @@ Enable TTL after the application writes `expiresAt` timestamps:
 gcloud firestore fields ttls update expiresAt \
   --collection-group=liveRuns \
   --enable-ttl
+
+gcloud firestore fields ttls update expiresAt \
+  --collection-group=submissionLimits \
+  --enable-ttl
 ```
 
 Use a seven-day retention period initially. The application sets `expiresAt = createdAt + 7 days`; Firestore performs deletion asynchronously.
@@ -252,6 +240,14 @@ gcloud storage buckets create "gs://${BUCKET}" \
   --project="$PROJECT_ID" \
   --location="$REGION" \
   --uniform-bucket-level-access
+
+gcloud storage buckets add-iam-policy-binding "gs://${BUCKET}" \
+  --member="serviceAccount:${WEB_SA}" \
+  --role="roles/storage.objectViewer"
+
+gcloud storage buckets add-iam-policy-binding "gs://${BUCKET}" \
+  --member="serviceAccount:${WORKER_SA}" \
+  --role="roles/storage.objectAdmin"
 ```
 
 Keep the bucket private. The browser should receive artifacts through authorized application routes or short-lived signed URLs, not public object URLs.
@@ -274,6 +270,14 @@ Create empty secret resources:
 ```bash
 gcloud secrets create openai-api-key --replication-policy=automatic
 gcloud secrets create daytona-api-key --replication-policy=automatic
+
+gcloud secrets add-iam-policy-binding openai-api-key \
+  --member="serviceAccount:${WORKER_SA}" \
+  --role="roles/secretmanager.secretAccessor"
+
+gcloud secrets add-iam-policy-binding daytona-api-key \
+  --member="serviceAccount:${WORKER_SA}" \
+  --role="roles/secretmanager.secretAccessor"
 ```
 
 Add values without placing them in command history:
@@ -310,6 +314,16 @@ gcloud tasks queues create "$QUEUE" \
   --max-backoff=300s \
   --max-doublings=3 \
   --log-sampling-ratio=1.0
+
+gcloud tasks queues add-iam-policy-binding "$QUEUE" \
+  --location="$REGION" \
+  --member="serviceAccount:${WEB_SA}" \
+  --role="roles/cloudtasks.enqueuer"
+
+gcloud tasks queues add-iam-policy-binding "$QUEUE" \
+  --location="$REGION" \
+  --member="serviceAccount:${WEB_SA}" \
+  --role="roles/cloudtasks.viewer"
 ```
 
 Verify it:
@@ -325,9 +339,9 @@ Each task should:
 - Target the worker's `run.app` URL plus `/internal/tasks/live-runs`.
 - Use an OIDC token from `promptgolf-task-invoker`.
 - Set the audience to the worker's base `run.app` URL.
-- Set a dispatch deadline of 1,800 seconds.
+- Set a dispatch deadline of 1,740 seconds.
 
-Cloud Tasks HTTP handlers have a maximum 30-minute dispatch deadline. Keep PromptGolf's worker deadline below that limit.
+Cloud Tasks HTTP handlers have a maximum 30-minute dispatch deadline. Give the application a 1,620-second execution budget, the task a 1,740-second dispatch deadline, and Cloud Run a 1,800-second timeout. The margins let the worker persist failure state and clean up before infrastructure terminates or retries it.
 
 ## 8. Refactor the application
 
@@ -352,19 +366,32 @@ Implement:
 - `MemoryLiveRunRepository` for unit tests and explicit provider-stub development.
 - `FirestoreLiveRunRepository` for staging and production.
 
-Firestore updates that append events or claim work must use transactions. Keep event numbering monotonic and cap the event array at 200 entries in the same transaction.
+Firestore updates that append events or claim work must use transactions. Keep event numbering monotonic and cap the event array at 200 entries in the same transaction. Coalesce bursty progress updates before writing so one run does not create avoidable contention on a single Firestore document; terminal state and lease heartbeats must not be delayed behind that buffer.
 
 ### 8.2 Replace the scheduler with Cloud Tasks
 
 `POST /api/live-runs` should:
 
-1. Validate origin, rate limits, challenge, and prompt length.
+1. Validate origin, distributed rate limits, challenge, prompt length, and the operator submission kill switch.
 2. Create the Firestore run with `queued` state and a seven-day `expiresAt`.
 3. Create a Cloud Task named from the run ID.
 4. Return `202` with the run URL.
-5. Mark the run failed if task creation fails after the Firestore document is created.
+5. Reconcile task creation before changing the run when enqueueing returns an error.
+
+Task creation is not safely classified by the first client error: a timeout can occur after Cloud Tasks accepted the deterministic task name. Retry `CreateTask` with the same name; treat `ALREADY_EXISTS` as success, and use `GetTask` when the result remains ambiguous. Do not mark the run failed while an accepted task may still execute. Persist `enqueueState=unknown` and alert for reconciliation if neither success nor absence can be proven.
 
 The web route must not eagerly import `live-runner.ts`, Playwright, or the Daytona SDK. Keep provider and browser imports behind the private worker boundary so a public API cold start cannot fail while loading worker-only packages.
+
+#### Distributed submission protection
+
+The existing process-local limiter is suitable only for local development; it resets on restart and does not coordinate Cloud Run instances. Before attaching real provider secrets to a publicly reachable deployment:
+
+1. Replace it with a Firestore transaction-backed quota keyed by a one-way hash of the normalized client identity and time window. Store no raw IP address, set a short `expiresAt`, and reject before creating the run or task.
+2. Put a Cloud Armor policy on the load-balancer backend with a conservative per-IP throttle for `POST /api/live-runs`. Start the rule in preview, inspect legitimate traffic, then enforce it before production cutover.
+3. Keep queue dispatch concurrency and worker maximum instances low, and provide an operator kill switch that pauses the queue.
+4. Add a project budget alert, provider-side spend limits where available, and alerts for submission rejection rate and queued-run growth.
+
+A shared application quota plus edge throttling is a production blocker because every accepted anonymous submission can incur OpenAI and Daytona spend. Cloud Armor alone is not an identity or global-budget control.
 
 Use these production packages:
 
@@ -379,7 +406,7 @@ const [task] = await tasksClient.createTask({
   parent: tasksClient.queuePath(projectId, region, queueName),
   task: {
     name: tasksClient.taskPath(projectId, region, queueName, runId),
-    dispatchDeadline: { seconds: 1800 },
+    dispatchDeadline: { seconds: 1740 },
     httpRequest: {
       httpMethod: "POST",
       url: `${workerUrl}/internal/tasks/live-runs`,
@@ -403,15 +430,19 @@ The private worker handler should:
 1. Accept only `POST /internal/tasks/live-runs`.
 2. Rely on Cloud Run IAM authentication; do not expose the worker publicly.
 3. Validate `runId` and load the run from Firestore.
-4. Claim the run with a Firestore transaction and a bounded lease.
+4. Claim the run with a Firestore transaction that increments and returns `leaseGeneration`.
 5. Return success immediately if the run is already completed.
-6. Avoid starting a second evaluation when an unexpired lease exists.
+6. Return retryable `503` without starting work when another worker owns an unexpired lease; do not acknowledge an unfinished run with `2xx`.
 7. Execute the existing OpenAI → Daytona → Playwright pipeline.
-8. Persist every stage and bounded event to Firestore.
+8. Renew the lease with a heartbeat and persist every stage and bounded event to Firestore.
 9. Upload large artifacts to Cloud Storage.
 10. Mark terminal success or failure before returning.
 
 Cloud Tasks is at-least-once delivery. Correctness must come from the Firestore claim/lease transaction, not from assuming each task runs once.
+
+Use a 90-second lease renewed every 30 seconds. Every heartbeat, stage update, terminal write, and artifact pointer update must transactionally require both the claimed `leaseOwner` and `leaseGeneration`. If renewal fails, the stale worker must abort provider/browser work and must not write completion. The fencing token prevents a delayed original worker from overwriting a retry that acquired a newer lease. Make provider operations idempotent where their APIs support an idempotency key derived from the run ID.
+
+The application's 1,620-second budget must include a final cleanup window. Abort provider calls and browser work before that budget expires, persist a retryable failure while the lease is still owned, and let Cloud Tasks decide whether another attempt remains.
 
 Classify failures:
 
@@ -432,16 +463,20 @@ For the first production version, keep the existing 1.5-second client polling ag
 
 Either remove the process-local SSE dependency or reimplement `/events` as a Firestore-backed stream. Polling is simpler and reliable for the expected traffic.
 
-### 8.5 Keep preview URLs server-side
+### 8.5 Migrate artifact and preview retrieval
 
 Store the signed Daytona preview target in Firestore as a server-only field. `/api/live-runs/[id]/preview` should:
 
 - Load the run from Firestore.
 - Apply the existing allowed-host and redirect protections.
-- Proxy only the stored target.
+- Proxy only the stored target while it remains valid.
 - Never return the raw signed target in run JSON.
 
-Signed Daytona previews are temporary. Before the sandbox's auto-stop/archive/delete policy takes effect, the worker should upload screenshots, evaluation JSON, and any supported replay/static artifact to Cloud Storage. Completed scorecards must remain useful after the live preview expires; do not treat the signed Daytona URL as durable storage.
+Signed Daytona previews and their sandboxes are temporary. Define the UI contract explicitly: the interactive preview is best-effort during and shortly after a run; the scorecard, screenshots, evaluation JSON, and supported replay/static artifact remain available for the seven-day run-retention period. Display an “Interactive preview expired” fallback rather than a generic failure after the signed target expires.
+
+Before the sandbox's auto-stop/archive/delete policy takes effect, the worker must upload screenshots, evaluation JSON, and any supported replay/static artifact to Cloud Storage. It writes only bounded object metadata—object name, content type, compressed size, and checksum—to Firestore.
+
+Refactor `/api/live-runs/[id]/artifact` to load the object through the web service account, enforce the existing run/object prefix and response-size limits, and stream or decode the supported artifact format. It must no longer read `artifactWorkspace` from process memory. Completed scorecards must remain useful after the live preview expires; do not treat the signed Daytona URL as durable storage.
 
 ### 8.6 Make runtime mode explicit
 
@@ -455,6 +490,8 @@ PROMPTGOLF_TASK_QUEUE=promptgolf-live-runs
 PROMPTGOLF_WORKER_URL
 PROMPTGOLF_TASK_INVOKER_SERVICE_ACCOUNT
 PROMPTGOLF_ARTIFACT_BUCKET
+PROMPTGOLF_RUN_BUDGET_SECONDS=1620
+PROMPTGOLF_SUBMISSIONS_ENABLED=0 | 1
 SERVICE_ROLE=web | worker
 OPENAI_API_KEY                 worker only, from Secret Manager
 DAYTONA_API_KEY                worker only, from Secret Manager
@@ -478,6 +515,7 @@ src/lib/promptgolf/live-runner.ts                      worker-executed pipeline 
 src/app/api/live-runs/route.ts                         validate, persist, enqueue
 src/app/api/live-runs/[id]/route.ts                    safe Firestore projection
 src/app/api/live-runs/[id]/events/route.ts             remove or make Firestore-backed
+src/app/api/live-runs/[id]/artifact/route.ts           stream durable Cloud Storage artifact
 src/app/api/live-runs/[id]/preview/route.ts            Firestore-backed target lookup
 src/app/internal/tasks/live-runs/route.ts              private idempotent worker handler
 src/components/promptgolf/live-run-view.tsx            durable polling behavior
@@ -560,6 +598,13 @@ Do not deploy `latest`. Deploy the immutable commit tag or image digest.
 
 ## 11. Deploy the private worker
 
+Pin enabled Secret Manager version numbers. The commands in §6 create version `1`; change these values after an intentional rotation:
+
+```bash
+export OPENAI_SECRET_VERSION="1"
+export DAYTONA_SECRET_VERSION="1"
+```
+
 ```bash
 gcloud run deploy "$WORKER_SERVICE" \
   --image="${IMAGE}:${IMAGE_TAG}" \
@@ -573,8 +618,8 @@ gcloud run deploy "$WORKER_SERVICE" \
   --min-instances=0 \
   --max-instances=3 \
   --timeout=1800 \
-  --set-env-vars="SERVICE_ROLE=worker,PROMPTGOLF_RUNTIME=gcp,PROMPTGOLF_GCP_REGION=${REGION},PROMPTGOLF_ARTIFACT_BUCKET=${BUCKET}" \
-  --set-secrets="OPENAI_API_KEY=openai-api-key:latest,DAYTONA_API_KEY=daytona-api-key:latest"
+  --set-env-vars="SERVICE_ROLE=worker,PROMPTGOLF_RUNTIME=gcp,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},PROMPTGOLF_GCP_REGION=${REGION},PROMPTGOLF_ARTIFACT_BUCKET=${BUCKET},PROMPTGOLF_RUN_BUDGET_SECONDS=1620" \
+  --set-secrets="OPENAI_API_KEY=openai-api-key:${OPENAI_SECRET_VERSION},DAYTONA_API_KEY=daytona-api-key:${DAYTONA_SECRET_VERSION}"
 ```
 
 Capture the canonical worker URL:
@@ -613,8 +658,10 @@ gcloud run deploy "$WEB_SERVICE" \
   --min-instances=0 \
   --max-instances=10 \
   --timeout=300 \
-  --set-env-vars="SERVICE_ROLE=web,PROMPTGOLF_RUNTIME=gcp,PROMPTGOLF_GCP_REGION=${REGION},PROMPTGOLF_TASK_QUEUE=${QUEUE},PROMPTGOLF_WORKER_URL=${WORKER_URL},PROMPTGOLF_TASK_INVOKER_SERVICE_ACCOUNT=${TASK_INVOKER_SA},PROMPTGOLF_ARTIFACT_BUCKET=${BUCKET}"
+  --set-env-vars="SERVICE_ROLE=web,PROMPTGOLF_RUNTIME=gcp,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},PROMPTGOLF_GCP_REGION=${REGION},PROMPTGOLF_TASK_QUEUE=${QUEUE},PROMPTGOLF_WORKER_URL=${WORKER_URL},PROMPTGOLF_TASK_INVOKER_SERVICE_ACCOUNT=${TASK_INVOKER_SA},PROMPTGOLF_ARTIFACT_BUCKET=${BUCKET},PROMPTGOLF_SUBMISSIONS_ENABLED=0"
 ```
+
+The first production web revision intentionally disables live submissions. Keep it disabled until the load balancer, Cloud Armor policy, distributed quota, logs, and rollback path are verified. Disabled submissions must return a structured `503` before creating Firestore state or Cloud Tasks.
 
 Capture its temporary URL:
 
@@ -662,7 +709,9 @@ Expected result for the second request: structured JSON `400`, proving the route
 
 ### Stubbed end-to-end run
 
-Use a separate staging service or revision with `PROMPTGOLF_TEST_PROVIDER_STUBS=1`. Never enable this variable in production.
+Use a separate GCP staging project with its own Firestore database, queue, bucket, web service, worker service, and service accounts. Deploy the staging worker with `PROMPTGOLF_TEST_PROVIDER_STUBS=1` and without mounting real provider secrets. Never use a revision of the production worker for stub testing: a revision can receive production traffic unless traffic and task targeting are isolated perfectly.
+
+Repeat the provisioning sections with a staging project ID, then point the staging web service only at the staging queue and worker URL. The staging task invoker must have no permission to invoke the production worker, and the production web service must have no permission to enqueue into the staging queue.
 
 Verify:
 
@@ -677,7 +726,7 @@ Verify:
 9. Failed runs store a bounded, redacted error.
 10. The worker writes artifacts to the expected bucket prefix.
 
-After stub verification, run one explicitly approved real OpenAI/Daytona submission and inspect its provider spend and Cloud logs.
+Do not run a real provider submission at this stage. The first approved real run occurs only after production traffic is behind the load balancer, shared quota and Cloud Armor are enforced, and the submission kill switch is deliberately enabled in §14.
 
 ### Logs
 
@@ -705,17 +754,30 @@ In **Network Services → Load balancing**, create a public global Application L
 4. A URL map whose default backend is the PromptGolf backend service.
 5. A Google-managed certificate covering `www.promptgolf.dev` and, if served directly, `promptgolf.dev`.
 6. An HTTPS frontend on port 443 and an HTTP-to-HTTPS redirect on port 80.
-7. Backend logging enabled. Add Cloud Armor rate limiting only after normal submission traffic has been measured.
+7. Backend logging enabled and an enforced Cloud Armor throttle for `POST /api/live-runs`, tested in preview first.
 
-Record the reserved IP and point the production DNS records to it only after the certificate and backend configuration are ready. After traffic through the load balancer is healthy, prevent clients from bypassing it through the public `run.app` URL:
+Record the reserved load-balancer IP. Keep the worker on its generated `run.app` URL with IAM authentication because Cloud Tasks uses that URL as its OIDC audience.
+
+Production cutover sequence:
+
+1. Lower the existing DNS TTL to 300 seconds at least several hours beforehand.
+2. Verify the web and worker `run.app` URLs, Firestore persistence, task authentication, shared quota, and artifact retrieval.
+3. Confirm the load balancer, serverless NEG, certificate resource, HTTPS frontend, redirect, logging, and Cloud Armor policy are configured.
+4. Point `www.promptgolf.dev` to the reserved load-balancer IP and keep the apex redirecting to `www`.
+5. Wait for the Google-managed certificate to become active.
+6. Re-run the production smoke checks through `https://www.promptgolf.dev`.
+7. After load-balanced traffic and enforced controls are healthy, enable submissions and prevent bypass through the public web `run.app` URL:
 
 ```bash
 gcloud run services update "$WEB_SERVICE" \
   --region="$REGION" \
+  --update-env-vars="PROMPTGOLF_SUBMISSIONS_ENABLED=1" \
   --ingress=internal-and-cloud-load-balancing
 ```
 
-Keep the worker on its generated `run.app` URL with IAM authentication because Cloud Tasks uses that URL as its OIDC audience.
+Immediately submit one explicitly approved low-cost real run through `https://www.promptgolf.dev`, confirm Firestore/task/worker/artifact behavior, and pause the queue or disable submissions if any stage fails.
+
+8. Keep the Vercel deployment and previous DNS values available for at least 24–48 hours as rollback capacity. Do not delete the Vercel project immediately after DNS changes.
 
 ### Optional staging-only shortcut
 
@@ -724,29 +786,15 @@ Cloud Run domain mapping is available in `asia-southeast1`, but Google documents
 ```bash
 gcloud beta run domain-mappings create \
   --service="$WEB_SERVICE" \
-  --domain="www.promptgolf.dev" \
+  --domain="staging.promptgolf.dev" \
   --region="$REGION"
-```
 
-Read the required DNS records from:
-
-```bash
 gcloud beta run domain-mappings describe \
-  --domain="www.promptgolf.dev" \
+  --domain="staging.promptgolf.dev" \
   --region="$REGION"
 ```
 
-Cutover sequence:
-
-1. Lower the existing DNS TTL to 300 seconds at least several hours beforehand.
-2. Verify the `run.app` URL fully.
-3. Add the Google-provided DNS record for `www.promptgolf.dev`.
-4. Keep `promptgolf.dev` redirecting to `www.promptgolf.dev`.
-5. Wait for the managed certificate to become active.
-6. Re-run the production smoke checks using `https://www.promptgolf.dev`.
-7. Keep the Vercel deployment intact for at least 24–48 hours as rollback capacity.
-
-Do not delete the Vercel project immediately after DNS changes.
+Do not use this Preview mapping as the production `www.promptgolf.dev` cutover path.
 
 ## 15. CI/CD after the first manual deployment
 
@@ -790,6 +838,8 @@ Recommended initial limits:
 | Worker max instances | 3 |
 | Worker CPU / memory | 2 vCPU / 4 GiB |
 | Worker timeout | 1,800 seconds |
+| Task dispatch deadline | 1,740 seconds |
+| Application execution budget | 1,620 seconds |
 | Max task attempts | 3 |
 | Live-run retention | 7 days |
 | Events per run | 200 |
@@ -840,18 +890,23 @@ gcloud tasks queues resume "$QUEUE" --location="$REGION"
 
 - [ ] Process-local run storage replaced with Firestore.
 - [ ] Process-local scheduler replaced with Cloud Tasks.
-- [ ] Worker claims are transactional and idempotent.
+- [ ] Worker claims use lease heartbeats and fencing tokens on every write.
 - [ ] Web and worker service accounts have separate least-privilege roles.
 - [ ] Worker is private and accepts authenticated task invocations only.
 - [ ] OpenAI and Daytona keys exist only in Secret Manager and worker environment.
 - [ ] Chromium launches inside the final container image.
 - [ ] Large artifacts are stored in private Cloud Storage.
+- [ ] Artifact routes read Cloud Storage and expired live previews have a durable fallback.
+- [ ] Shared Firestore quota and enforced Cloud Armor submission throttling are active.
+- [ ] Secret versions are pinned rather than deployed from `latest`.
+- [ ] Stub verification uses a separate staging project, queue, and worker.
 - [ ] Prompt and signed preview target never appear in public run JSON.
 - [ ] Stubbed end-to-end run survives service restarts.
 - [ ] One approved real provider run completes.
 - [ ] Logs contain no credentials, prompts, authorization headers, or signed preview URLs.
 - [ ] Alerts and a billing budget are configured.
 - [ ] Rollback revision and old Vercel DNS values are recorded.
+- [ ] Production traffic uses the external load balancer, not Preview domain mapping.
 - [ ] Production domain passes submission, polling, preview, and mobile checks.
 
 ## Official references
@@ -862,6 +917,8 @@ gcloud tasks queues resume "$QUEUE" --location="$REGION"
 - External Application Load Balancer with Cloud Run: <https://cloud.google.com/load-balancing/docs/https/setting-up-https-serverless>
 - Cloud Tasks HTTP targets: <https://cloud.google.com/tasks/docs/creating-http-target-tasks>
 - Cloud Tasks queue configuration: <https://cloud.google.com/tasks/docs/configuring-queues>
+- Cloud Tasks queue-level IAM: <https://cloud.google.com/tasks/docs/secure-queue-configuration>
+- Cloud Armor rate limiting: <https://cloud.google.com/armor/docs/rate-limiting-overview>
 - Firestore database creation: <https://cloud.google.com/sdk/gcloud/reference/firestore/databases/create>
 - Firestore TTL: <https://cloud.google.com/firestore/docs/ttl>
 - Artifact Registry Docker images: <https://cloud.google.com/artifact-registry/docs/docker/store-docker-container-images>
