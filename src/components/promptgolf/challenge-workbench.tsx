@@ -133,11 +133,18 @@ function Evaluation({ challenge }: { challenge: Challenge }) {
       <p className="mt-3 text-[13px] leading-6 text-ink-soft">{challenge.thesis}</p>
       <div className="mt-5 divide-y divide-rule border-y border-rule">
         <EvalRow title="Public behavior" body="Visible requirements are exercised against the generated artifact." />
-        <EvalRow title="Production edge cases" body="Private cases test realistic boundaries, state transitions, failure handling, and domain correctness without exposing the cases." />
+        <EvalRow title="Production edge cases" body="Private cases vary realistic inputs and boundaries without changing the published contract." />
         <EvalRow title="Product quality" body="Keyboard access, mobile usability, hierarchy, and clear states contribute observable evidence." />
         <EvalRow title="Golf efficiency" body="Passing more checks with fewer human prompts produces the strongest round." />
       </div>
-      <p className="mt-5 rounded border border-rule bg-white/[0.025] p-3 text-[12px] leading-5 text-ink-muted">Hidden checks remain conceptual here. The builder receives your spec and public brief, never private evaluator source or test answers.</p>
+      <h3 className="mt-6 text-[13px] font-medium text-ink">Evaluation focus</h3>
+      <ul className="mt-2 space-y-2" aria-label="Evaluation focus">
+        {challenge.hiddenTeasers.map((focus) => <li key={focus} className="flex gap-2 text-[12px] leading-5 text-ink-muted"><span className="text-warn" aria-hidden="true">•</span><span>{focus}</span></li>)}
+      </ul>
+      <div className="mt-4 flex flex-wrap gap-1.5" aria-label="Evaluation methods">
+        {challenge.evaluation.behavior.map((method) => <span key={method} className="rounded border border-rule bg-white/[0.025] px-2 py-1 font-mono text-[10px] text-ink-muted">{method}</span>)}
+      </div>
+      <p className="mt-5 rounded border border-rule bg-white/[0.025] p-3 text-[12px] leading-5 text-ink-muted">Private inputs and evaluator source remain hidden. They may vary the published rules above, but do not introduce a different contract.</p>
     </div>
   );
 }

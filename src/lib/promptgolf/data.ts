@@ -9,7 +9,7 @@ export type Challenge = {
   status: "live" | "preview";
   category: "full-stack" | "backend-api" | "data-ml" | "systems-cli" | "security-reliability" | "domain-workflows";
   categoryLabel: string;
-  artifact: "web" | "api" | "cli" | "pipeline";
+  artifact: "web" | "api" | "cli" | "pipeline" | "library" | "database";
   framework: string;
   estimatedMinutes: number;
   acceptance?: number;
@@ -141,11 +141,12 @@ export const challenges: Challenge[] = [
       then: "totals update and checkout reaches a clear confirmation state",
     },
     publicRequirements: [
-      "Display cart items with name, price, and quantity.",
-      "Allow quantity changes.",
-      "Show subtotal, shipping, tax, discount, and total.",
-      "Accept promo codes.",
-      "Provide a checkout/confirm order button and success state.",
+      "Render Canvas tote ($25.00, quantity 2, stock 3), Espresso beans ($18.00, quantity 1, stock 4), and Stoneware mug ($12.00, quantity 0, stock 0).",
+      "Allow labeled quantity changes only from 0 through stock; visibly mark out-of-stock items and disable adding them.",
+      "Calculate all money in integer cents: subtotal from line items, 8% tax rounded to cents, $7.00 shipping below a $50.00 pre-discount subtotal, discount, and a nonnegative total.",
+      "Normalize promo input by trimming and uppercasing: SAVE10 takes 10% off, FREESHIP removes shipping, BIGSAVE takes $200 off capped at the subtotal, and unknown codes show a recoverable error.",
+      "Provide labeled cart, order-summary, promo, and checkout controls that remain usable at mobile widths and by keyboard.",
+      "Prevent duplicate checkout submission, show loading and failure states, and finish with exactly one clear order confirmation.",
     ],
     hiddenTeasers: hiddenTests.map(([, label, note]) => `${label}: ${note}`),
     guide: [
@@ -173,9 +174,15 @@ export const challenges: Challenge[] = [
     estimatedMinutes: 18,
     publicBrief: "Build a team settings page where an owner can invite users, view pending invites, accept invites, and manage roles.",
     thesis: "CRUD is not enough: hidden tests check duplicate invites, single-use tokens, last-owner protection, and role authorization.",
-    publicRequirements: ["Invite by email", "List members and pending invites", "Change roles", "Cancel or resend invites"],
-    hiddenTeasers: ["Email normalization", "Duplicate invite prevention", "Single-use tokens", "Last owner protection", "Danger confirmations"],
-    guide: ["Specify permission matrix", "Define invite lifecycle", "Add irreversible-action confirmations", "Prove failure states."],
+    publicRequirements: [
+      "Normalize invite email addresses and allow only one active pending invite per team and email.",
+      "List members and pending invites with their current role and lifecycle status.",
+      "Accept only a valid, unexpired invite token once; cancelled, replaced, or already-used tokens must fail safely.",
+      "Authorize role changes and prevent removing or demoting the team's last owner.",
+      "Cancel or resend an invite, invalidating any token that it replaces, and confirm destructive actions.",
+    ],
+    hiddenTeasers: ["Normalization and duplicate prevention", "Invite-token lifecycle", "Last-owner invariant", "Authorization boundaries", "Destructive-action recovery"],
+    guide: ["Specify the permission matrix.", "Define every invite lifecycle transition.", "State token invalidation and last-owner invariants.", "Prove failure and confirmation states."],
     evaluation: {
       behavior: ["deterministic"],
       specCompleteness: "requirement tree",
@@ -195,9 +202,15 @@ export const challenges: Challenge[] = [
     estimatedMinutes: 22,
     publicBrief: "Build an API that receives signed payment events and updates order state safely across retries.",
     thesis: "Positive evidence covers signature validation, idempotent retries, ordering, and observable recovery.",
-    publicRequirements: ["Receive signed events", "Update order state", "Return stable responses"],
-    hiddenTeasers: ["Retry idempotency", "Event ordering", "Atomic updates"],
-    guide: ["Define the state machine", "Specify retries", "Cover concurrency"],
+    publicRequirements: [
+      "Verify each provider signature against the raw request body before parsing or mutating state.",
+      "Deduplicate by provider event ID so retries return a stable success response without repeating side effects.",
+      "Apply an explicit order-state transition table; late or out-of-order events must not regress a terminal state.",
+      "Persist the event record and order transition atomically under concurrent delivery.",
+      "Return observable, retry-safe responses for accepted, duplicate, invalid-signature, and temporarily failed events.",
+    ],
+    hiddenTeasers: ["Signature boundary", "Retry idempotency", "Out-of-order delivery", "Atomic concurrency", "Observable recovery"],
+    guide: ["Define the state transition table.", "Specify deduplication and retry responses.", "Cover concurrent and out-of-order delivery.", "Separate permanent rejection from retryable failure."],
     evaluation: {
       behavior: ["state-machine", "property-based"],
       specCompleteness: "requirement tree",
@@ -217,9 +230,15 @@ export const challenges: Challenge[] = [
     estimatedMinutes: 20,
     publicBrief: "Build a pipeline that reconciles transaction CSVs and emits matched, unmatched, and summary outputs.",
     thesis: "Properties check normalization, decimal-safe totals, duplicates, and provenance.",
-    publicRequirements: ["Ingest CSVs", "Normalize records", "Export audit results"],
-    hiddenTeasers: ["Encoding variance", "Decimal precision", "Duplicate records"],
-    guide: ["Define canonical fields", "Preserve provenance", "Add invariants"],
+    publicRequirements: [
+      "Ingest multiple transaction CSV files while handling UTF-8 BOMs, column-name variance, and malformed rows explicitly.",
+      "Normalize identifiers, dates, and currency amounts into documented canonical fields using decimal-safe arithmetic.",
+      "Match each source record at most once and classify duplicate, matched, and unmatched records deterministically.",
+      "Export matched and unmatched rows plus a summary whose counts and totals reconcile to the inputs.",
+      "Preserve source file and row provenance for every emitted record and validation error.",
+    ],
+    hiddenTeasers: ["Encoding and header variance", "Decimal-safe totals", "Duplicate classification", "One-to-one matching", "Provenance and reconciliation"],
+    guide: ["Define canonical fields and malformed-row policy.", "Specify one-to-one matching and duplicate semantics.", "Preserve provenance.", "Add count and amount invariants."],
     evaluation: {
       behavior: ["property-based"],
       specCompleteness: "requirement tree",
@@ -239,9 +258,15 @@ export const challenges: Challenge[] = [
     estimatedMinutes: 24,
     publicBrief: "Build a CLI that synchronizes a directory with dry-run output and resumable transfers.",
     thesis: "State traces prove safe resume, deterministic dry runs, useful exit codes, and scriptable progress.",
-    publicRequirements: ["Sync a directory", "Support dry run", "Resume work"],
-    hiddenTeasers: ["Interrupted resume", "Convergence", "Exit codes"],
-    guide: ["Specify exits", "Model interruptions", "Define convergence"],
+    publicRequirements: [
+      "Synchronize a source directory recursively into a destination, treating the source as authoritative and preserving relative paths.",
+      "Provide a deterministic dry run that reports planned changes without writing files or checkpoints.",
+      "Resume interrupted transfers from durable progress without publishing partial files as complete.",
+      "Verify completed content before atomic replacement and make repeated runs converge with no unnecessary writes.",
+      "Emit scriptable progress and distinct exit codes for success, invalid usage, partial failure, and integrity failure.",
+    ],
+    hiddenTeasers: ["Interrupted transfer recovery", "Atomic publication", "Repeat-run convergence", "Integrity checking", "Scriptable exits"],
+    guide: ["Define source-authoritative conflict semantics.", "Model interruption and checkpoint lifecycle.", "Specify atomic publication and integrity checks.", "Define stable output and exit codes."],
     evaluation: {
       behavior: ["state-machine"],
       specCompleteness: "requirement tree",
@@ -261,9 +286,15 @@ export const challenges: Challenge[] = [
     estimatedMinutes: 20,
     publicBrief: "Build rate-limit middleware with tenant policies, response metadata, and an audit trail.",
     thesis: "Evidence checks policy boundaries, concurrency, recovery, and client feedback—not a preferred algorithm.",
-    publicRequirements: ["Enforce tenant limits", "Return metadata", "Record decisions"],
-    hiddenTeasers: ["Window boundaries", "Concurrency", "Tenant isolation"],
-    guide: ["Define policy semantics", "Specify contracts", "Make decisions observable"],
+    publicRequirements: [
+      "Enforce an explicit limit and window policy independently for each tenant and policy key.",
+      "Make allowance decisions atomic under concurrent requests and define the exact window-boundary rule.",
+      "Return limit, remaining, reset, and retry-after metadata with stable units and rejected responses.",
+      "Record an audit decision without storing raw secrets or allowing audit failure to bypass enforcement.",
+      "Recover capacity at the documented reset boundary without leaking usage between tenants.",
+    ],
+    hiddenTeasers: ["Exact window boundaries", "Concurrent allowance", "Tenant isolation", "Client feedback", "Audit-path failure"],
+    guide: ["Define policy and boundary semantics.", "Specify the response contract and units.", "Make concurrent decisions atomic.", "Keep enforcement isolated from audit failures."],
     evaluation: {
       behavior: ["property-based", "fuzzing"],
       specCompleteness: "requirement tree",
@@ -273,33 +304,35 @@ export const challenges: Challenge[] = [
   {
     slug: "rate-limiter",
     title: "Rate Limiter",
-    subtitle: "A limit per client and one method. Who counts as the same client is the whole game.",
+    subtitle: "A limit per client and one method. Identity and exact window boundaries are the whole game.",
     difficulty: "expert",
     status: "preview",
     category: "security-reliability",
     categoryLabel: "Security & reliability",
-    artifact: "api",
-    framework: "HTTP service",
+    artifact: "library",
+    framework: "TypeScript",
     estimatedMinutes: 10,
-    publicBrief: "Implement a RateLimiter(limit, windowMs) with allow(key, nowMs). Each client key gets its own sliding window.",
-    thesis: "The sliding window is the easy part the model builds for free. The hidden test is who counts as the same client.",
+    publicBrief: "Implement a RateLimiter(limit, windowMs) with allow(key, nowMs). Each canonical client key gets its own sliding window.",
+    thesis: "Evidence checks canonical identity, exact window boundaries, rejected-attempt semantics, and isolation across clients.",
     publicRequirements: [
       "constructor(limit, windowMs) and allow(key, nowMs) returning true (permitted) or false (rejected).",
-      "Each client key is rate-limited independently on its own sliding window over the trailing windowMs.",
-      "Once a key's earlier requests fall outside the window, that key is allowed through again.",
+      "Canonicalize each key by trimming surrounding whitespace and lowercasing it before applying a budget.",
+      "Rate-limit each canonical key independently over the half-open trailing interval (nowMs - windowMs, nowMs].",
+      "Allow a request when fewer than limit accepted timestamps remain in that interval; rejected attempts do not consume capacity.",
+      "Require positive integer limit and windowMs values and nondecreasing finite nowMs inputs.",
     ],
     hiddenTeasers: [
-      "Same client, different spelling: two keys that refer to the same client must share one budget.",
-      "Differential fuzz: hundreds of random multi-client streams, with each client arriving under several spellings.",
+      "Canonical identity across case and surrounding-whitespace variants.",
+      "Boundary and differential streams across independently budgeted clients.",
     ],
     guide: [
-      "Restate the goal in one line: a sliding window per client, plus a rule for who counts as the same client.",
-      "The sliding window is the floor. Spend your spec on the key: name exactly how two keys are judged to be the same client.",
+      "Restate the identity and interval rules before choosing a data structure.",
+      "Specify validation, rejected-attempt behavior, and independent client state.",
     ],
     evaluation: {
       behavior: ["property-based", "fuzzing"],
       specCompleteness: "requirement tree",
-      artifactAdapter: "api-adapter",
+      artifactAdapter: "library-adapter",
     }
   },
   {
@@ -310,18 +343,20 @@ export const challenges: Challenge[] = [
     status: "preview",
     category: "backend-api",
     categoryLabel: "Backend & API",
-    artifact: "api",
-    framework: "Node.js API",
+    artifact: "library",
+    framework: "TypeScript",
     estimatedMinutes: 10,
-    publicBrief: "Implement a PaymentProcessor with charge(ref, amountCents): it processes a charge and returns { chargeId, amountCents }.",
-    thesis: "Recording a charge and minting an id is the easy part. The hidden test is what happens when a client retries.",
+    publicBrief: "Implement a PaymentProcessor with charge(ref, amountCents): it processes an idempotent charge and returns { chargeId, amountCents }.",
+    thesis: "Evidence checks stable retries, conflicting reference reuse, and one-charge state under repeated calls.",
     publicRequirements: [
       "charge(ref, amountCents) returning { chargeId, amountCents }.",
-      "A first-seen ref is charged for the amountCents it was given.",
-      "ref is a string the caller passes in with the charge; amountCents is an integer number of cents.",
+      "A first-seen non-empty ref with a positive integer amountCents creates exactly one charge and stores its result.",
+      "Repeating the same ref and amount returns the original chargeId and amountCents without creating another charge.",
+      "Repeating a ref with a different amount rejects the request and leaves the original charge unchanged.",
     ],
     hiddenTeasers: [
-      "Retried request, one charge: a request that arrives again under a ref already handled must not become a second charge.",
+      "Same-request retries return one stable charge.",
+      "Conflicting reuse of an idempotency reference fails without mutation.",
     ],
     guide: [
       "Restate the goal in one line: process a charge per call, plus a rule for what a repeat of the same ref means.",
@@ -330,7 +365,7 @@ export const challenges: Challenge[] = [
     evaluation: {
       behavior: ["deterministic", "state-machine"],
       specCompleteness: "requirement tree",
-      artifactAdapter: "api-adapter",
+      artifactAdapter: "library-adapter",
     }
   },
   {
@@ -341,17 +376,19 @@ export const challenges: Challenge[] = [
     status: "preview",
     category: "data-ml",
     categoryLabel: "Data & ML",
-    artifact: "pipeline",
-    framework: "Python pipeline",
+    artifact: "library",
+    framework: "Python",
     estimatedMinutes: 11,
-    publicBrief: "Implement retrieve(documents, query, k): return at most k passages from the documents, best match first.",
-    thesis: "Scoring passages by how many query words they contain is the easy part. The hidden test is semantic search where the answer is written in different words.",
+    publicBrief: "Implement retrieve(documents, query, k): return at most k source passages, best match first.",
+    thesis: "Evidence checks source-grounded ranking across direct matches, paraphrases, distractors, and deterministic ties.",
     publicRequirements: [
-      "retrieve(documents, query, k) returning at most k passage strings, best match first.",
-      "A plain keyword question whose answer sits in a short page lands in the top k.",
+      "retrieve(documents, query, k) receives an array of passage strings and returns at most k of those original strings, best match first.",
+      "Rank direct keyword matches and semantic paraphrases by their likelihood of containing the answer rather than inventing an answer.",
+      "Return no duplicates, handle k <= 0 and empty inputs with an empty list, and use deterministic input order for tied scores.",
     ],
     hiddenTeasers: [
-      "When the question and the answer are written in different words, the search still has to reach the answer.",
+      "Paraphrased questions still retrieve the source passage containing the answer.",
+      "Distractors, duplicate passages, empty inputs, and stable tie ordering.",
     ],
     guide: [
       "Restate the goal in one line: return the k passages most likely to hold the answer, best first.",
@@ -360,7 +397,7 @@ export const challenges: Challenge[] = [
     evaluation: {
       behavior: ["deterministic", "property-based"],
       specCompleteness: "requirement tree",
-      artifactAdapter: "pipeline-adapter",
+      artifactAdapter: "library-adapter",
     }
   },
   {
@@ -371,17 +408,19 @@ export const challenges: Challenge[] = [
     status: "preview",
     category: "domain-workflows",
     categoryLabel: "Domain workflows",
-    artifact: "pipeline",
+    artifact: "library",
     framework: "TypeScript",
     estimatedMinutes: 10,
-    publicBrief: "Implement accruedInterest(principal, annualRate, startISO, endISO): the interest that accrues on a principal at an annual rate over the date range.",
-    thesis: "Multiplying principal by rate by a time fraction is the easy part. The hidden test is how you turn two calendar dates into a span.",
+    publicBrief: "Implement accruedInterest(principal, annualRate, startISO, endISO) using Actual/365 Fixed.",
+    thesis: "Evidence checks UTC calendar-day arithmetic across month ends, leap days, equal dates, and invalid ranges.",
     publicRequirements: [
-      "accruedInterest(principal, annualRate, startISO, endISO) returning a number; equal dates return 0.",
-      "Interest is principal times annualRate times the fraction of a year the range covers.",
+      "accruedInterest(principal, annualRate, startISO, endISO) returns a number; equal dates return 0.",
+      "Interpret valid YYYY-MM-DD inputs as UTC calendar dates and reject an end date before the start date.",
+      "Use Actual/365 Fixed: interest = principal × annualRate × elapsed calendar days / 365.",
+      "Do not round intermediate results; return the computed number using normal floating-point precision.",
     ],
     hiddenTeasers: [
-      "Month-end day count: the day-count convention is exactly where a vague spec drifts.",
+      "Month-end, leap-day, and year-boundary ranges under Actual/365 Fixed.",
     ],
     guide: [
       "Restate the goal in one line: principal times rate times a year fraction.",
@@ -390,7 +429,7 @@ export const challenges: Challenge[] = [
     evaluation: {
       behavior: ["property-based", "fuzzing"],
       specCompleteness: "requirement tree",
-      artifactAdapter: "pipeline-adapter",
+      artifactAdapter: "library-adapter",
     }
   },
   {
@@ -401,19 +440,20 @@ export const challenges: Challenge[] = [
     status: "preview",
     category: "systems-cli",
     categoryLabel: "Systems & CLI",
-    artifact: "cli",
+    artifact: "library",
     framework: "C compiler",
     estimatedMinutes: 12,
-    publicBrief: "Implement a fixed-block memory pool in C: pool_init(buf, buf_size, block_size), pool_alloc() returns one block, pool_free(ptr) returns it.",
-    thesis: "The signature is trivial. The hidden tests are the allocator laws a vague spec forgets.",
+    publicBrief: "Implement a fixed-block memory pool in C: pool_init(buf, buf_size, block_size), pool_alloc(), and pool_free(ptr).",
+    thesis: "Evidence checks capacity, alignment, exhaustion, reuse, and repeated allocation cycles without heap allocation.",
     publicRequirements: [
-      "pool_init carves the buffer into fixed-size blocks.",
-      "pool_alloc returns one 8-byte-aligned block from the buffer.",
-      "pool_free returns a block to the pool.",
+      "pool_init carves a caller-owned, 8-byte-aligned buffer into floor(buf_size / block_size) fixed-size blocks; block_size is a nonzero multiple of 8.",
+      "pool_alloc returns one distinct 8-byte-aligned block from the buffer and never allocates from the heap.",
+      "pool_alloc returns NULL after all blocks are allocated.",
+      "pool_free returns a previously allocated block so a later allocation can reuse it.",
     ],
     hiddenTeasers: [
-      "Exhaustion returns NULL: a full pool must refuse.",
-      "Reuse after free: a freed block must be handed back.",
+      "Exact capacity and aligned in-buffer addresses.",
+      "Exhaustion, reuse after free, and repeated allocation cycles.",
     ],
     guide: [
       "Restate the goal in one line, then specify the full lifecycle of a block before any layout.",
@@ -421,7 +461,7 @@ export const challenges: Challenge[] = [
     evaluation: {
       behavior: ["deterministic", "property-based"],
       specCompleteness: "requirement tree",
-      artifactAdapter: "cli-adapter",
+      artifactAdapter: "library-adapter",
     }
   },
   {
@@ -432,19 +472,21 @@ export const challenges: Challenge[] = [
     status: "preview",
     category: "backend-api",
     categoryLabel: "Backend & API",
-    artifact: "pipeline",
+    artifact: "database",
     framework: "SQLite 3",
     estimatedMinutes: 11,
-    publicBrief: "Design the SQLite schema for a small events / RSVP system: events with a capacity, users, and RSVPs.",
-    thesis: "Anyone can write three CREATE TABLEs. The hidden tests are the relational rules a vague schema forgets.",
+    publicBrief: "Design the SQLite schema for an events and RSVP system with enforced relational constraints and an attendance view.",
+    thesis: "Evidence checks relational uniqueness, cascades, validation constraints, and complete attendance reporting.",
     publicRequirements: [
-      "Tables events (name, capacity), users (email), and rsvps linking a user to an event.",
-      "Each table has an integer primary key named id.",
-      "A view event_attendance reporting a count of attendees per event.",
+      "Create events(name, capacity), users(email), and rsvps linking one user to one event; each table has an integer primary key named id.",
+      "Require non-empty event names, positive capacities, and case-insensitively unique user emails.",
+      "Prevent duplicate RSVPs for the same user and event with a database constraint.",
+      "Deleting an event or user cascades to its RSVPs with foreign-key enforcement enabled.",
+      "Create event_attendance with one row for every event, including zero-attendance events, and an attendee_count column.",
     ],
     hiddenTeasers: [
-      "No double-RSVP: the same user can't RSVP to the same event twice.",
-      "Clean delete: removing an event must remove its RSVPs.",
+      "Relational uniqueness and foreign-key integrity.",
+      "Cascading cleanup and zero-attendance view rows.",
     ],
     guide: [
       "Restate the system in one line, then specify each table's columns and the rules that bind them before any SQL.",
@@ -452,7 +494,7 @@ export const challenges: Challenge[] = [
     evaluation: {
       behavior: ["deterministic", "property-based"],
       specCompleteness: "requirement tree",
-      artifactAdapter: "pipeline-adapter",
+      artifactAdapter: "database-adapter",
     }
   }
 ];
