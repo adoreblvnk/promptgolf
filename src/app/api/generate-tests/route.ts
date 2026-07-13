@@ -4,10 +4,12 @@ import { getModelPolicy } from "@/lib/promptgolf/model";
 import { validateGenerateTestsInput } from "@/lib/promptgolf/generate-tests-input";
 import { readBoundedJson } from "@/lib/promptgolf/request-json";
 import { consumeRateLimit, rateLimitResponse, requestClientKey } from "@/lib/promptgolf/rate-limit";
+import { isTrustedMutationRequest, untrustedMutationResponse } from "@/lib/promptgolf/request-origin";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  if (!isTrustedMutationRequest(request)) return untrustedMutationResponse();
   const globalLimit = consumeRateLimit("generate-tests:global", { limit: 100, windowMs: 60_000 });
   if (!globalLimit.allowed) return rateLimitResponse(globalLimit);
   const rateLimit = consumeRateLimit(`generate-tests:${requestClientKey(request)}`, { limit: 10, windowMs: 60_000 });

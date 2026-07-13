@@ -4,10 +4,12 @@ import { validateLiveRunInput } from "@/lib/promptgolf/live-run-input";
 import { RunQueueFullError } from "@/lib/promptgolf/run-scheduler";
 import { readBoundedJson } from "@/lib/promptgolf/request-json";
 import { consumeRateLimit, rateLimitResponse, requestClientKey } from "@/lib/promptgolf/rate-limit";
+import { isTrustedMutationRequest, untrustedMutationResponse } from "@/lib/promptgolf/request-origin";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  if (!isTrustedMutationRequest(request)) return untrustedMutationResponse();
   const globalLimit = consumeRateLimit("live-run:global", { limit: 50, windowMs: 60_000 });
   if (!globalLimit.allowed) return rateLimitResponse(globalLimit);
   const rateLimit = consumeRateLimit(`live-run:${requestClientKey(request)}`, { limit: 5, windowMs: 60_000 });
