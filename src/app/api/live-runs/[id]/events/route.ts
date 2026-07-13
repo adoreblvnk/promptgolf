@@ -28,11 +28,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     void writer.close().catch(() => undefined);
   };
   const send = (payload: unknown) => {
-    if (!closed) void writer.write(encoder.encode(encodeEvent(payload))).catch(close);
+    if (closed) return Promise.resolve();
+    return writer.write(encoder.encode(encodeEvent(payload))).catch(close);
   };
 
   try {
-    unsubscribe = subscribeToLiveRun(id, (event) => send({ type: "event", event }));
+    unsubscribe = subscribeToLiveRun(id, (event) => {
+      void send({ type: "event", event }).finally(() => {
+        if (event.stage === "completed" || event.stage === "failed") close();
+      });
+    });
   } catch (error) {
     if (error instanceof LiveRunSubscriberLimitError) {
       return NextResponse.json({ error: error.message }, { status: 429, headers: { "Retry-After": "15" } });
@@ -42,7 +47,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   timers.heartbeat = setInterval(() => send({ type: "heartbeat", at: new Date().toISOString() }), 15000);
   request.signal.addEventListener("abort", close, { once: true });
-  send({ type: "snapshot", run: { ...run, prompt: undefined, artifactWorkspace: undefined } });
+  void send({ type: "snapshot", run: { ...run, prompt: undefined, artifactWorkspace: undefined } }).finally(() => {
+    if (run.status === "completed" || run.status === "failed") close();
+  });
 
   return new Response(stream.readable, {
     headers: {
