@@ -46,6 +46,12 @@ describe("workspace manifests", () => {
     }))).toThrow("Workspace entrypoints must reference included files");
   });
 
+  it("requires the direct-render preview entrypoint to be HTML", () => {
+    expect(() => parseWorkspace(manifest({
+      entrypoints: { preview: "package.json", manifest: "package.json" },
+    }))).toThrow("browser-renderable HTML file");
+  });
+
   it.each(["/health?probe=1", "/health#ready", "/health%ZZ", "/health'\nraise SystemExit(0)\n'"])(
     "rejects unsafe sandbox health path %s",
     (unsafeHealthPath) => {
