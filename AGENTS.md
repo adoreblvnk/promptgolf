@@ -19,34 +19,24 @@ PromptGolf is a competitive benchmark for agentic prompting: fewer prompts, more
 - Tailwind CSS v4.
 - shadcn/ui.
 - AI SDK v6.
-- Codex CLI provider for main model usage because the ChatGPT subscription is unlimited there.
-- Moonshot AI for all live model calls using `MOONSHOT_API_KEY`.
-- Do not use the Google AI SDK provider.
-
-- Sandbox/run infrastructure behind an adapter where possible.
-- Playwright for deterministic app evaluation.
+- `@ai-sdk/openai` for all live model calls using `OPENAI_API_KEY`.
+- Daytona for live sandbox/build/start/preview execution using `DAYTONA_API_KEY`.
+- Playwright for deterministic behavior evaluation.
 
 ## Model/provider policy
 
-Use the AI SDK Codex CLI community provider for default generation flows: https://ai-sdk.dev/providers/community-providers/codex-cli
-
-Codex provider notes:
-
-- Unlimited usage is available through the user's ChatGPT subscription.
-- Codex does **not** support AI SDK tool calls. Use it for builder-agent generation via CLI/process boundaries, not `generateText`/`streamText` tool-calling flows.
-- Strict Codex model IDs: `gpt-5.5`, `gpt-5.3-codex`, `gpt-5.2-codex`, `gpt-5.2-codex-max`, `gpt-5.2-codex-mini`, `gpt-5.1`, `gpt-5.2`.
-- Default to `gpt-5.5` unless implementation constraints suggest a Codex-specific model.
-
-Tool-calling provider notes:
-
-- Use `kimi-k2.7-code-highspeed` for workspace generation and `kimi-k2.6` for multimodal evaluation and diagnosis.
-- Do not route live generation or evaluation through Agnes AI, TokenRouter, OpenAI, or Google.
+- Builder: OpenAI `gpt-5.4-mini`, reasoning `medium`, verbosity `low`.
+- Visual judge: OpenAI `gpt-5.4-mini`, reasoning `low`.
+- Prompt diagnosis: OpenAI `gpt-5.4-mini`, reasoning `low`.
+- Offline EvalSpec authoring/review only: `gpt-5.5`.
+- Behavior grading: Playwright only, no model.
+- Do not use Moonshot, Agnes, TokenRouter, Google, Codex, handwritten OpenAI HTTP calls, model routing, or live fallback providers.
 
 Environment/API key notes:
 
 - `.env` already has some keys. Never commit or print real API keys.
-- Moonshot API base URL: `https://api.moonshot.ai/v1`.
-- Keep sandbox and Moonshot integrations behind adapters. When keys are absent, report unavailable/degraded state honestly rather than simulating provider success.
+- Daytona API base URL is handled by the Daytona SDK.
+- Keep OpenAI and Daytona integrations behind adapters. When keys are absent, report unavailable/degraded state honestly rather than simulating provider success.
 
 ## Primary challenge
 
@@ -76,30 +66,35 @@ Scoring should reward public tests, hidden tests, UX/style, and fewer prompts. D
 
 ## Current implemented slice
 
-- Prompt submission must remain a real local flow: challenge form/server action → `POST /api/runs`-equivalent classification → run scorecard redirect.
-- Deterministic classification into naive, structured, and expert runs remains acceptable for the local product seed scorecards; provider status must come from live adapters or explicit unavailable/degraded states.
-- Keep run pages, leaderboard, scorecards, and API routes functional under `npm run build` and Playwright.
+- Prompt submission must remain a real local flow: challenge form/server action → live run creation → `/live-runs/[id]` timeline and scorecard.
+- The live builder runs a bounded Daytona coding-agent loop: write → build → inspect → fix → start → verify.
+- After builder finalization or step-limit exhaustion, do not switch models, patch the artifact, or substitute fixtures in live mode. Record honest failure.
+- Stored validated EvalSpecs are used during contestant runs; they are not regenerated live.
+- Playwright behavior checks and OpenAI visual judging run after preview readiness, then prompt diagnosis runs after scoring and never changes the score.
+- `POST /api/runs` remains available for deterministic naive/structured/expert seeded reference runs.
+- Seeded run pages, the leaderboard, scorecards, provider posture, generated-checkout preview surfaces, and API routes should remain functional under `npm run build`.
 
 ## Provider posture
 
 Use:
 
-- Sandbox runner: isolated run/build/test sandbox; if sandbox creation is not enabled, show a real credentialed connectivity/status probe plus an honest disabled/degraded state.
-- Moonshot AI: sole live model backend for workspace generation, evaluator drafts, visual evaluation, prompt diagnosis, and provider status using `MOONSHOT_API_KEY`.
+- OpenAI through `@ai-sdk/openai` for live builder, visual judge, and post-score diagnosis.
+- Daytona for isolated workspace file writes, approved commands, production build/start, health checks, preview URL, and sandbox lifecycle cleanup.
+- Stored EvalSpecs plus Playwright for deterministic behavior grading.
 
 Do not add unrelated provider integrations unless the scope changes.
 
 ## Quality bar
 
 - Beautiful, polished UI matters.
-- Prefer deterministic seeded demo data over fragile live integrations if time is short.
+- Prefer deterministic seeded demo data over fragile live integrations for reference scorecards, but never fake live provider success.
 - Screenshots + scorecards are enough for MVP evidence; raw logs/traces are optional later.
 - Preserve the central narrative: good specs pass hidden tests; vague prompts fail reality.
 
 ## Verification policy
 
 - Agents should not run `npm run test:e2e` unless the user explicitly asks for it in that session.
-- Prefer `npm run lint` and `npm run build` for routine agent verification.
+- Prefer `npm test`, `npm run lint`, and `npm run build` for routine agent verification.
 - Playwright remains the deterministic evaluator for PromptGolf, but full e2e runs are user-controlled because they can start servers, collide with local ports, and take longer than routine checks.
 
 ## Skill usage note

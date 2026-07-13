@@ -4,7 +4,7 @@
     LeetCode for agentic prompting: fewer prompts, more passing tests.
   </p>
   <p>
-    Built with Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, AI SDK, Moonshot AI, Daytona, Codex CLI, and Playwright.
+    Built with Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, AI SDK v6, OpenAI, Daytona, and Playwright.
   </p>
 </div>
 
@@ -31,7 +31,7 @@
 
 PromptGolf tests prompting and domain skill by executing specs against real software tasks. An agent creates a framework-native multi-file workspace, then a sandbox builds and runs it. Evaluation records positive capability evidence through three pillars: behavior testing, spec completeness, and artifact adapter testing. It grades outcomes, never resemblance to a preferred implementation.
 
-The current demo is built for [Agnes AI Hackathon @ SMU](https://luma.com/s9s8bjla). It shows how a vague prompt can pass visible requirements while failing hidden ecommerce checks, and how a stronger domain-aware spec survives those checks.
+The current demo shows how a vague prompt can pass visible requirements while failing hidden ecommerce checks, and how a stronger domain-aware spec survives those checks.
 
 The main challenge is a full-stack ecommerce checkout web app with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation.
 
@@ -41,7 +41,7 @@ The main challenge is a full-stack ecommerce checkout web app with cart items, q
 2. Start the Full Stack Ecommerce Checkout Web App challenge.
 3. Read the public brief and hidden-test teaser.
 4. Submit a prompt from the challenge page; the app starts a live run and redirects to `/live-runs/[id]`.
-5. Inspect the generated checkout preview, hidden-test replay, streaming log, sandbox posture, and Moonshot provider state.
+5. Inspect the generated checkout preview, hidden-test replay, streaming log, Daytona posture, OpenAI provider state, and post-score prompt diagnosis.
 6. Compare the seeded naive, structured, and expert reference runs on the leaderboard.
 
 ## Screenshots
@@ -61,7 +61,7 @@ The main challenge is a full-stack ecommerce checkout web app with cart items, q
 
 - Node.js 20+
 - npm
-- `MOONSHOT_API_KEY` for live model calls and `DAYTONA_API_KEY` for sandbox execution
+- `OPENAI_API_KEY` for live model calls and `DAYTONA_API_KEY` for sandbox execution
 
 ### Installation
 
@@ -98,20 +98,21 @@ Then open <http://127.0.0.1:3000>.
 The submission path is intentionally real and provider-aware:
 
 1. The challenge form validates the prompt and starts a live run.
-2. The builder creates a validated framework workspace with manifests, files, and build/start metadata.
-3. The sandbox uploads, builds, and starts that project; unavailable providers remain honestly degraded.
+2. OpenAI `gpt-5.4-mini` drives a bounded Daytona coding-agent loop: write, build, inspect, fix, start, and verify.
+3. Daytona hosts all file writes, approved commands, production build/start, health checks, and preview serving; unavailable providers fail honestly.
 4. The workspace adapter maps executable declarations, while Playwright observes semantic controls and behavior in the running artifact.
-5. Validated EvalSpecs collect positive behavior and requirement evidence; prohibited negative, mutation, fingerprint, and preferred-method strategies are rejected by policy.
+5. Stored validated EvalSpecs collect positive behavior and requirement evidence; prohibited negative, mutation, fingerprint, and preferred-method strategies are rejected by policy.
 6. Seeded naive, structured, and expert scorecards remain available as stable reference runs.
 
 ## Provider Policy
 
-- Codex CLI provider is the default because the ChatGPT/Codex subscription is unlimited and separate from limited OpenAI provider credits.
-- Codex does not support AI SDK tool calls, so current generation/evaluation boundaries do not depend on Codex tool calls.
-- Moonshot AI is the sole live model provider for workspace generation, evaluator drafts, screenshot judgment, and prompt diagnosis.
-- Moonshot uses `https://api.moonshot.ai/v1` with `kimi-k2.7-code-highspeed` for workspace generation and `kimi-k2.6` for multimodal evaluation.
-- Daytona remains the isolated workspace build/start/preview sandbox.
-- Tests use stubbed provider boundaries so CI never needs or exposes real secrets.
+- OpenAI through `@ai-sdk/openai` is the only live model provider.
+- Builder: `gpt-5.4-mini`, reasoning `medium`, verbosity `low`.
+- Visual judge and prompt diagnosis: `gpt-5.4-mini`, reasoning `low`; diagnosis runs after scoring and never changes the score.
+- Offline EvalSpec authoring/review may use `gpt-5.5`, but contestant runs use stored validated EvalSpecs.
+- Daytona remains the isolated workspace file/build/start/health/preview sandbox.
+- Behavior grading is deterministic Playwright only, with no model-generated behavior score.
+- Live mode has no alternate provider or local artifact fallback. CI tests use explicit stub boundaries so CI never needs or exposes real secrets.
 
 ## Key Routes
 
@@ -121,7 +122,7 @@ The submission path is intentionally real and provider-aware:
 - `/live-runs/[id]` - live generated app run and Playwright replay
 - `/runs/expert-checkout` - expert reference run scorecard
 - `/leaderboard` - ranked seeded runs
-- `/api/challenges`, `/api/runs`, `/api/runs/[id]`, `/api/score`, `/api/generate-tests` - local product APIs with live provider boundaries where configured
+- `/api/challenges`, `/api/runs`, `/api/runs/[id]`, `/api/score`, `/api/generate-tests` - local product APIs; `/api/generate-tests` reports stored EvalSpecs rather than regenerating tests during contestant runs
 
 ## Roadmap
 
@@ -140,7 +141,7 @@ Distributed under the MIT License.
 
 ## Credits <!-- omit in toc -->
 
-- Built for [Agnes AI Hackathon @ SMU](https://luma.com/s9s8bjla).
+- PromptGolf benchmark architecture and demo materials.
 
 ## Acknowledgements <!-- omit in toc -->
 

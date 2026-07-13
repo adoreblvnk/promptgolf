@@ -34,7 +34,7 @@ Sounds easy. Which is exactly how people ship bugs.”
 
 That’s one prompt. No edge cases. No product rules. No checkout knowledge.
 
-Now the pipeline runs: Moonshot AI builds and evaluates the app, while Daytona serves it in an isolated sandbox.”
+Now the pipeline runs: OpenAI drives a Daytona coding-agent loop, Daytona builds and serves it in an isolated sandbox, and stored EvalSpecs become Playwright checks.”
 
 ## 1:02-1:24 - Naive result
 
@@ -58,7 +58,7 @@ But now the prompt includes structure and domain knowledge:.”
 
 ## 1:42-1:56 - Expert result
 
-“Moonshot builds again. Daytona serves again. Moonshot evaluates again.
+“OpenAI drives the Daytona loop again. Daytona serves again. Playwright scores behavior, then OpenAI diagnoses the prompt after the score is locked.
 
 Now the score jumps.
 
