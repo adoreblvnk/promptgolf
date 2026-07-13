@@ -40,16 +40,22 @@ describe("workspace manifests", () => {
     expect(() => parseWorkspace(manifest({ files: [...fixture.files, fixture.files[0]] }))).toThrow("Duplicate workspace path: package.json");
   });
 
-  it("requires preview and manifest entrypoints to reference uploaded files", () => {
+  it("requires manifest and optional static preview entrypoints to reference uploaded files", () => {
     expect(() => parseWorkspace(manifest({
-      entrypoints: { preview: "dist/missing.html", manifest: "package.json" },
-    }))).toThrow("Workspace entrypoints must reference included files");
+      entrypoints: { preview: "/", manifest: "missing.json" },
+    }))).toThrow("Workspace manifest entrypoint must reference an included file");
+    expect(() => parseWorkspace(manifest({
+      entrypoints: { preview: "/", manifest: "package.json", staticPreview: "dist/missing.html" },
+    }))).toThrow("Workspace static preview entrypoint must reference an included file");
   });
 
-  it("requires the direct-render preview entrypoint to be HTML", () => {
+  it("accepts framework-native runtime preview routes and validates optional static previews", () => {
+    expect(parseWorkspace(manifest({
+      entrypoints: { preview: "/checkout", manifest: "package.json" },
+    })).entrypoints.preview).toBe("/checkout");
     expect(() => parseWorkspace(manifest({
-      entrypoints: { preview: "package.json", manifest: "package.json" },
-    }))).toThrow("browser-renderable HTML file");
+      entrypoints: { preview: "/", manifest: "package.json", staticPreview: "package.json" },
+    }))).toThrow("Static preview entrypoints must reference a browser-renderable HTML file");
   });
 
   it.each(["/health?probe=1", "/health#ready", "/health%ZZ", "/health'\nraise SystemExit(0)\n'"])(
@@ -82,20 +88,18 @@ describe("workspace manifests", () => {
 });
 
 describe("artifact adaptation", () => {
-  it("maps observable semantic controls and executable declarations to canonical capabilities", () => {
+  it("maps executable declarations and runtime routes to canonical capabilities", () => {
     const artifact = adaptWorkspace(parseWorkspace(deterministicCheckoutWorkspace()));
     const capabilities = new Map(artifact.capabilities.map((capability) => [capability.key, capability]));
 
     expect(capabilities.get("artifact.build")).toMatchObject({ kind: "command", confidence: "declared" });
     expect(capabilities.get("artifact.health")).toMatchObject({ kind: "route", evidence: "/health" });
-    expect(capabilities.get("checkout.promo.input")).toMatchObject({ kind: "control", confidence: "observed" });
-    expect(capabilities.get("checkout.submit")).toMatchObject({ kind: "control", confidence: "observed" });
-    expect(capabilities.get("checkout.total")).toMatchObject({ kind: "output", confidence: "observed" });
+    expect(capabilities.get("artifact.preview")).toMatchObject({ kind: "route", evidence: "/" });
   });
 
   it("does not infer product capabilities from source layout or framework metadata", () => {
     const fixture = deterministicCheckoutWorkspace();
-    const files = fixture.files.map((file) => file.path === fixture.entrypoints.preview
+    const files = fixture.files.map((file) => file.path === fixture.entrypoints.staticPreview
       ? { ...file, content: "<!doctype html><html><body><main>Welcome</main></body></html>" }
       : file);
     const artifact = adaptWorkspace(parseWorkspace(manifest({ files })));
@@ -104,6 +108,7 @@ describe("artifact adaptation", () => {
       "artifact.build",
       "artifact.start",
       "artifact.health",
+      "artifact.preview",
     ]);
   });
 });

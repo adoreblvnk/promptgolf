@@ -81,14 +81,19 @@ describe("workspace and artifact adapter", () => {
     const fixture = deterministicCheckoutWorkspace();
     expect(() => parseWorkspace({ ...fixture, files: [...fixture.files, { path: unsafePath, content: "x" }] })).toThrow(/normalized portable relative paths/);
   });
-  it("requires both entrypoints to resolve to included safe files", () => {
+  it("validates runtime and file entrypoints at their respective boundaries", () => {
     const fixture = deterministicCheckoutWorkspace();
-    expect(() => parseWorkspace({ ...fixture, entrypoints: { ...fixture.entrypoints, preview: "dist/index.html" } })).toThrow(/entrypoints/);
+    expect(() => parseWorkspace({ ...fixture, entrypoints: { ...fixture.entrypoints, preview: "dist/index.html" } })).toThrow(/URL-safe absolute paths/);
     expect(() => parseWorkspace({ ...fixture, entrypoints: { ...fixture.entrypoints, manifest: "../package.json" } })).toThrow(/normalized portable relative paths/);
   });
-  it("discovers semantic canonical capabilities without source fingerprints", () => {
+  it("adapts executable declarations without inferring behavior from source fingerprints", () => {
     const artifact = adaptWorkspace(deterministicCheckoutWorkspace());
-    expect(artifact.capabilities.map((item) => item.key)).toEqual(expect.arrayContaining(["artifact.build", "artifact.start", "checkout.promo.input", "checkout.submit", "checkout.total"]));
+    expect(artifact.capabilities.map((item) => item.key)).toEqual([
+      "artifact.build",
+      "artifact.start",
+      "artifact.health",
+      "artifact.preview",
+    ]);
     expect(JSON.stringify(artifact.capabilities)).not.toContain("data-testid");
   });
 });

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
+const challengeSlug = "mini-checkout-promo-engine";
 
 test("PromptGolf demo flow renders challenge, leaderboard, and expert run", async ({ page }) => {
   const browserErrors: string[] = [];
@@ -41,7 +42,7 @@ test("PromptGolf demo flow renders challenge, leaderboard, and expert run", asyn
 
 test("POST /api/runs classifies submissions and reports provider state", async ({ request }) => {
   const naive = await request.post(`${baseURL}/api/runs`, {
-    data: { prompt: "Build an ecommerce checkout web app with cart items and promo codes." },
+    data: { prompt: "Build an ecommerce checkout web app with cart items and promo codes.", challengeSlug },
   });
   await expect(naive).toBeOK();
   const naivePayload = await naive.json();
@@ -55,13 +56,13 @@ test("POST /api/runs classifies submissions and reports provider state", async (
   );
 
   const structured = await request.post(`${baseURL}/api/runs`, {
-    data: { prompt: "Use acceptance tests, edge cases, validation states, and clear error handling for checkout." },
+    data: { prompt: "Use acceptance tests, edge cases, validation states, and clear error handling for checkout.", challengeSlug },
   });
   await expect(structured).toBeOK();
   await expect(await structured.json()).toMatchObject({ classification: "structured", runId: "structured-checkout" });
 
   const expert = await request.post(`${baseURL}/api/runs`, {
-    data: { prompt: "Build checkout with integer cents, case-insensitive promo normalization, stock limits, double-submit lock, shipping threshold order, negative discount floor, loading states, mobile layout, and aria labels." },
+    data: { prompt: "Build checkout with integer cents, case-insensitive promo normalization, stock limits, double-submit lock, shipping threshold order, negative discount floor, loading states, mobile layout, and aria labels.", challengeSlug },
   });
   await expect(expert).toBeOK();
   const expertPayload = await expert.json();
@@ -70,14 +71,14 @@ test("POST /api/runs classifies submissions and reports provider state", async (
 });
 
 test("POST /api/runs rejects empty prompts", async ({ request }) => {
-  const response = await request.post(`${baseURL}/api/runs`, { data: { prompt: "   " } });
+  const response = await request.post(`${baseURL}/api/runs`, { data: { prompt: "   ", challengeSlug } });
   expect(response.status()).toBe(400);
-  await expect(await response.json()).toMatchObject({ error: expect.stringMatching(/Prompt must describe/) });
+  await expect(await response.json()).toMatchObject({ error: expect.stringMatching(/Prompt must contain at least/) });
 });
 
 test("POST /api/live-runs creates a unique live run and completes in stub mode", async ({ request }) => {
   const response = await request.post(`${baseURL}/api/live-runs`, {
-    data: { prompt: "Build checkout with integer cents, promo normalization, stock limits, double-submit lock, loading state, mobile aria labels." },
+    data: { prompt: "Build checkout with integer cents, promo normalization, stock limits, double-submit lock, loading state, mobile aria labels.", challengeSlug },
   });
   await expect(response).toBeOK();
   const created = await response.json();
