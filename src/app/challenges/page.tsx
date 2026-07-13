@@ -1,16 +1,24 @@
-import { AppShell, Eyebrow, Section } from "@/components/promptgolf/chrome";
+import { AppShell, Section } from "@/components/promptgolf/chrome";
 import { ChallengeCatalog } from "@/components/promptgolf/challenge-catalog";
 import { challenges } from "@/lib/promptgolf";
 
 export default function ChallengesPage() {
   return (
     <AppShell>
-      <Section className="pb-10 pt-16">
-        <Eyebrow>Challenge catalog</Eyebrow>
-        <h1 className="mt-6 max-w-4xl text-5xl font-semibold tracking-[-0.04em] text-balance text-ink md:text-7xl">Product briefs that punish vague specs.</h1>
-        <p className="mt-6 max-w-2xl text-lg leading-8 text-ink-soft">Explore artifact-spanning briefs across six engineering domains. Live means runnable today; preview documents an upcoming adapter without pretending it executes.</p>
+      <Section className="pb-5 pt-8 sm:pt-10">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-[-0.025em] text-ink">Problem set</h1>
+            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-soft">Benchmark your software specs against visible requirements and production-grade hidden checks.</p>
+          </div>
+          <div className="flex items-center gap-4 rounded border border-rule bg-card px-3 py-2 font-mono text-[11px] text-ink-muted">
+            <span><strong className="text-pass">1</strong> live</span>
+            <span><strong className="text-ink">12</strong> problems</span>
+            <span><strong className="text-accent">10</strong> hidden checks in play</span>
+          </div>
+        </div>
       </Section>
-      <Section className="pt-4">
+      <Section className="pb-14 pt-0">
         <ChallengeCatalog challenges={challenges} />
       </Section>
     </AppShell>

@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { CircleUserRound } from "lucide-react";
+import { ProductNav } from "@/components/promptgolf/product-nav";
 import { cn } from "@/lib/utils";
 
 export function AppShell({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div className={cn("relative min-h-dvh bg-paper text-ink", className)}>
-      <div className="pointer-events-none fixed inset-0 opacity-[0.5] [background-image:linear-gradient(oklch(0.23_0.022_268/0.04)_1px,transparent_1px),linear-gradient(90deg,oklch(0.23_0.022_268/0.04)_1px,transparent_1px)] [background-size:72px_72px]" />
       <div className="relative z-10">
         <TopNav />
         {children}
@@ -15,45 +16,37 @@ export function AppShell({ children, className }: { children: ReactNode; classNa
   );
 }
 
+export function WorkbenchShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex h-dvh min-h-[560px] flex-col overflow-hidden bg-paper text-ink">
+      <TopNav />
+      <main className="min-h-0 flex-1">{children}</main>
+    </div>
+  );
+}
+
 export function TopNav() {
   return (
-    <header className="sticky top-0 z-30 border-b border-rule bg-transparent">
-      <nav className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6 lg:px-8">
-        <Link href="/" className="flex min-h-11 items-center gap-2.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">
-          <span className="flex size-8 items-center justify-center rounded-[5px] bg-ink font-mono text-xs font-semibold text-paper">PG</span>
-          <span className="font-mono text-sm font-medium tracking-tight text-ink">promptgolf</span>
+    <header className="sticky top-0 z-30 shrink-0 border-b border-rule bg-[#15171b]">
+      <nav className="flex min-h-[52px] items-center gap-2 px-3 sm:px-4">
+        <Link href="/" className="flex min-h-9 shrink-0 items-center gap-2 rounded px-1.5">
+          <span className="flex size-7 items-center justify-center rounded bg-accent font-mono text-[11px] font-semibold text-accent-foreground">PG</span>
+          <span className="hidden font-mono text-[13px] font-medium tracking-tight text-ink sm:inline">prompt<span className="text-accent">golf</span></span>
         </Link>
-        <div className="order-3 flex w-full items-center justify-center gap-1 sm:w-auto sm:justify-start md:order-none">
-          <NavLink href="/challenges">Challenges</NavLink>
-          <NavLink href="/leaderboard">Leaderboard</NavLink>
-        </div>
-        <Link
-          href="/challenges/mini-checkout-promo-engine"
-          className="group inline-flex min-h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-paper transition-[background-color,transform] duration-200 ease-out hover:bg-accent/90 active:scale-[0.98]"
-        >
-          Play demo
-          <span className="font-mono transition-transform duration-200 ease-out group-hover:translate-x-0.5">→</span>
+        <span className="h-5 w-px shrink-0 bg-rule" aria-hidden="true" />
+        <ProductNav />
+        <Link href="/runs/expert-checkout" className="ml-auto hidden min-h-8 shrink-0 items-center gap-2 rounded border border-rule px-2.5 text-xs text-ink-soft hover:bg-white/[0.04] sm:inline-flex">
+          <CircleUserRound className="size-3.5" /> Player 01
         </Link>
       </nav>
     </header>
   );
 }
 
-function NavLink({ href, children }: { href: string; children: ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium text-ink-soft transition-colors duration-200 ease-out hover:bg-ink/[0.05] hover:text-ink"
-    >
-      {children}
-    </Link>
-  );
-}
-
 function Footer() {
   return (
-    <footer className="mx-auto mt-8 max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
-      <div className="flex flex-col gap-2 border-t border-rule pt-6 text-xs text-ink-muted sm:flex-row sm:items-center sm:justify-between">
+    <footer className="mx-auto mt-8 max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+      <div className="flex flex-col gap-2 border-t border-rule pt-5 text-xs text-ink-muted sm:flex-row sm:items-center sm:justify-between">
         <span className="font-mono">promptgolf · benchmark the spec writers</span>
         <span className="font-mono">good specs survive hidden tests</span>
       </div>
@@ -71,7 +64,7 @@ export function Eyebrow({ children }: { children: ReactNode }) {
 }
 
 export function Bezel({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("overflow-hidden rounded-lg border border-rule bg-card shadow-[0_1px_2px_oklch(0.23_0.022_268/0.05)]", className)}>{children}</div>;
+  return <div className={cn("overflow-hidden rounded-md border border-rule bg-card", className)}>{children}</div>;
 }
 
 export function Section({ children, className }: { children: ReactNode; className?: string }) {
@@ -88,5 +81,5 @@ export function Metric({ value, label }: { value: string; label: string }) {
 }
 
 export function GlassCard({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("rounded-lg border border-rule bg-card p-6 shadow-[0_1px_2px_oklch(0.23_0.022_268/0.05)]", className)}>{children}</div>;
+  return <div className={cn("rounded-md border border-rule bg-card p-6", className)}>{children}</div>;
 }

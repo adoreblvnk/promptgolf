@@ -1,78 +1,73 @@
 import Link from "next/link";
-import Image from "next/image";
-import { ArrowRight } from "lucide-react";
-import { AppShell, Eyebrow, GlassCard, Section } from "@/components/promptgolf/chrome";
-import { RunPreview } from "@/components/promptgolf/scorecard";
+import { ArrowUpRight, Crown, Medal } from "lucide-react";
+import { AppShell, Section } from "@/components/promptgolf/chrome";
 import { runs } from "@/lib/promptgolf";
+import { cn } from "@/lib/utils";
 
 export default function LeaderboardPage() {
   const ranked = [...runs].sort((a, b) => b.score.finalScore - a.score.finalScore);
 
   return (
     <AppShell>
-      <Section className="grid items-center gap-10 pb-10 pt-16 lg:grid-cols-[minmax(0,0.95fr)_minmax(360px,0.75fr)]">
-        <div>
-          <Eyebrow>Leaderboard</Eyebrow>
-          <h1 className="mt-6 max-w-4xl text-5xl font-semibold tracking-[-0.04em] text-balance text-ink md:text-7xl">Fewer prompts. More passing tests.</h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-ink-soft">The demo ranks prompt quality by public checks, hidden domain checks, UX/style, and prompt efficiency. Runtime is intentionally not part of scoring.</p>
-        </div>
-        <div className="relative overflow-hidden rounded-lg border border-rule bg-card shadow-[0_1px_2px_oklch(0.23_0.022_268/0.05)]">
-          <div className="relative aspect-[3/2]">
-            <Image
-              src="/promptgolf-scorecard-bg.png"
-              alt="Illustration of a generated app turning into scored prompt evaluation cards"
-              fill
-              priority
-              className="object-cover"
-              sizes="(min-width: 1024px) 38vw, 100vw"
-            />
+      <Section className="pb-5 pt-8 sm:pt-10">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <div className="flex items-center gap-2"><Crown className="size-4 text-warn" /><span className="font-mono text-[11px] text-warn">Clubhouse ranking</span></div>
+            <h1 className="mt-2 text-2xl font-semibold tracking-[-0.025em] text-ink">Leaderboard</h1>
+            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-soft">Best verified rounds, ranked by passing evidence and prompt efficiency. Runtime does not affect score.</p>
           </div>
-          <div className="absolute inset-0 bg-gradient-to-t from-paper/65 via-transparent to-transparent" aria-hidden="true" />
+          <div className="flex items-center gap-4 rounded border border-rule bg-card px-3 py-2 font-mono text-[11px] text-ink-muted">
+            <span>Par <strong className="text-ink">10</strong></span><span>Players <strong className="text-ink">3</strong></span><span>Checks <strong className="text-pass">15</strong></span>
+          </div>
         </div>
       </Section>
 
-      <Section className="py-8">
-        <div className="grid gap-4 lg:grid-cols-3">
-          {ranked.map((run, index) => <RunPreview key={run.id} run={run} rank={index + 1} />)}
-        </div>
-      </Section>
-
-      <Section className="pt-8">
-        <GlassCard>
-          <h2 className="text-2xl font-semibold tracking-[-0.02em] text-ink">Detailed ranking</h2>
-          <div className="mt-6 overflow-hidden rounded-md border border-rule">
-            {ranked.map((run, index) => (
-              <Link
-                key={run.id}
-                href={`/runs/${run.id}`}
-                className="grid gap-4 border-b border-rule bg-card p-5 transition-colors duration-200 ease-out last:border-b-0 hover:bg-paper md:grid-cols-[56px_1fr_110px_110px_110px_72px] md:items-center"
-              >
-                <div className="font-mono text-2xl font-semibold tabular-nums text-ink-muted">#{index + 1}</div>
-                <div>
-                  <div className="font-medium text-ink">{run.player}</div>
-                  <div className="mt-1 line-clamp-1 text-sm text-ink-soft">{run.promptExcerpt}</div>
-                </div>
-                <Cell label="public" value={`${run.score.publicPassed}/${run.score.publicTotal}`} />
-                <Cell label="hidden" value={`${run.score.hiddenPassed}/${run.score.hiddenTotal}`} />
-                <Cell label="prompts" value={`${run.promptCount}`} />
-                <div className="flex items-center gap-2 font-mono text-xl font-semibold tabular-nums text-ink">
-                  {run.score.finalScore}
-                  <ArrowRight className="size-4 text-ink-muted" />
-                </div>
-              </Link>
-            ))}
+      <Section className="pb-14 pt-0">
+        <div className="overflow-hidden rounded-md border border-rule bg-card">
+          <div className="flex min-h-11 items-center justify-between gap-3 border-b border-rule px-3 sm:px-4">
+            <div className="flex items-center gap-1">
+              <button type="button" className="min-h-8 rounded bg-white/[0.08] px-3 text-[12px] text-ink">Global</button>
+              <button type="button" className="min-h-8 rounded px-3 text-[12px] text-ink-muted" disabled>Friends</button>
+            </div>
+            <span className="font-mono text-[10px] text-ink-muted">Full Stack Ecommerce Checkout</span>
           </div>
-        </GlassCard>
+          <div className="hidden min-h-9 grid-cols-[52px_minmax(220px,1fr)_100px_90px_90px_90px_90px_76px] items-center gap-3 border-b border-rule bg-white/[0.02] px-4 font-mono text-[10px] uppercase tracking-[0.08em] text-ink-muted md:grid">
+            <span>Rank</span><span>Player</span><span>Round</span><span>Hidden</span><span>Strokes</span><span>Handicap</span><span>UX</span><span>Score</span>
+          </div>
+          <div className="divide-y divide-rule">
+            {ranked.map((run, index) => {
+              const toPar = run.score.hiddenTotal - run.score.hiddenPassed - 3;
+              const handicap = Math.max(0, run.score.hiddenTotal - run.score.hiddenPassed);
+              return (
+                <Link key={run.id} href={`/runs/${run.id}`} className="group block px-3 transition-colors hover:bg-white/[0.035] sm:px-4">
+                  <div className="hidden min-h-[64px] grid-cols-[52px_minmax(220px,1fr)_100px_90px_90px_90px_90px_76px] items-center gap-3 md:grid">
+                    <span className="flex items-center gap-1.5 font-mono text-[13px] text-ink-muted">{index === 0 && <Medal className="size-3.5 text-warn" />}#{index + 1}</span>
+                    <span className="min-w-0"><span className="block truncate text-[13px] font-medium text-ink group-hover:text-accent">{run.player}</span><span className="mt-0.5 block truncate text-[11px] text-ink-muted">{run.label} spec · verified reference run</span></span>
+                    <GolfRound value={toPar} />
+                    <span className="font-mono text-[12px] tabular-nums text-ink-soft">{run.score.hiddenPassed}/{run.score.hiddenTotal}</span>
+                    <span className="font-mono text-[12px] tabular-nums text-ink-soft">{run.promptCount}</span>
+                    <span className="font-mono text-[12px] tabular-nums text-ink-muted">{handicap}</span>
+                    <span className="font-mono text-[12px] tabular-nums text-ink-soft">{run.uxScore}/10</span>
+                    <span className="flex items-center gap-1 font-mono text-sm font-semibold tabular-nums text-ink">{run.score.finalScore}<ArrowUpRight className="size-3 text-ink-muted" /></span>
+                  </div>
+                  <div className="py-3.5 md:hidden">
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 w-7 shrink-0 font-mono text-[12px] text-ink-muted">#{index + 1}</span>
+                      <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><span className="truncate text-[13px] font-medium text-ink">{run.player}</span><span className="font-mono text-sm font-semibold text-ink">{run.score.finalScore}</span></div><div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] text-ink-muted"><GolfRound value={toPar} /><span>{run.score.hiddenPassed}/{run.score.hiddenTotal} hidden</span><span>{run.promptCount} stroke{run.promptCount === 1 ? "" : "s"}</span><span>HCP {handicap}</span></div></div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+          <div className="border-t border-rule bg-white/[0.015] px-4 py-3 text-[11px] leading-5 text-ink-muted">Round is relative to hidden-check par: under-par means fewer missed production checks. Strokes are human prompts; handicap reflects remaining hidden-check gap.</div>
+        </div>
       </Section>
     </AppShell>
   );
 }
 
-function Cell({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="font-mono text-xs uppercase tracking-wider text-ink-muted">{label}</div>
-      <div className="mt-1 font-mono font-semibold tabular-nums text-ink">{value}</div>
-    </div>
-  );
+function GolfRound({ value }: { value: number }) {
+  const label = value === 0 ? "E" : value > 0 ? `+${value}` : `${value}`;
+  return <span className={cn("font-mono text-[12px] font-semibold tabular-nums", value < 0 ? "text-pass" : value > 0 ? "text-fail" : "text-ink-soft")}>{label}</span>;
 }

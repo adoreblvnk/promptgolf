@@ -6,12 +6,14 @@ import { cn } from "@/lib/utils";
 
 export function ScorePill({ run }: { run: Run }) {
   const score = run.score.finalScore;
+  const toPar = run.score.hiddenTotal - run.score.hiddenPassed - 3;
+  const toParLabel = toPar === 0 ? "E" : toPar > 0 ? `+${toPar}` : `${toPar}`;
   return (
-    <div className="flex items-center gap-3 rounded-md border border-rule bg-paper p-1.5 pr-4">
-      <div className="flex size-12 items-center justify-center rounded bg-ink font-mono text-lg font-semibold tabular-nums text-paper">{score}</div>
+    <div className="flex items-center gap-3 rounded border border-warn/30 bg-warn-soft p-2 pr-4">
+      <div className="flex size-12 items-center justify-center rounded bg-warn font-mono text-lg font-semibold tabular-nums text-paper">{toParLabel}</div>
       <div>
-        <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-ink-muted">score</div>
-        <div className="font-mono text-sm text-ink-soft">{run.score.hiddenPassed}/{run.score.hiddenTotal} hidden · {run.promptCount} prompt{run.promptCount === 1 ? "" : "s"}</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-warn">official round · {score}/100</div>
+        <div className="font-mono text-[12px] text-ink-soft">{run.score.hiddenPassed}/{run.score.hiddenTotal} hidden · {run.promptCount} stroke{run.promptCount === 1 ? "" : "s"}</div>
       </div>
     </div>
   );
@@ -56,18 +58,18 @@ export function Scorecard({ run }: { run: Run }) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_0.85fr]">
-      <GlassCard>
+      <GlassCard className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="font-mono text-xs uppercase tracking-[0.12em] text-accent">{run.provider} · {run.model}</div>
-            <h2 className="mt-2 text-3xl font-semibold tracking-[-0.02em] text-ink">{run.player}</h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">{run.promptExcerpt}</p>
+            <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">{run.provider} · {run.model}</div>
+            <h2 className="mt-1.5 text-xl font-semibold tracking-[-0.02em] text-ink">{run.player}</h2>
+            <p className="mt-2 max-w-2xl text-[13px] leading-5.5 text-ink-soft">{run.promptExcerpt}</p>
           </div>
           <ScorePill run={run} />
         </div>
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
           {groups.map((group) => (
-            <div key={group.key} className="rounded-md border border-rule bg-paper p-5">
+            <div key={group.key} className="rounded border border-rule bg-paper p-3.5">
               <div className="flex items-center justify-between">
                 <div className="font-medium text-ink">{group.title}</div>
                 <div className="font-mono text-sm tabular-nums text-ink-soft">{group.passed}/{group.total}</div>
@@ -85,9 +87,9 @@ export function Scorecard({ run }: { run: Run }) {
             </div>
           ))}
         </div>
-        <ul className="mt-6 divide-y divide-rule overflow-hidden rounded-md border border-rule">
+        <ul className="mt-4 divide-y divide-rule overflow-hidden rounded border border-rule">
           {run.tests.map((test) => (
-            <li key={test.id} className={cn("flex items-start gap-3 px-4 py-3", test.passed ? "bg-card" : "bg-accent-soft")}>
+            <li key={test.id} className={cn("flex items-start gap-3 px-3 py-2.5", test.passed ? "bg-card" : "bg-fail-soft")}>
               <span className={cn("mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full", test.passed ? "bg-pass-soft text-pass" : "bg-accent text-paper")}>
                 {test.passed ? <Check className="size-3.5" /> : <X className="size-3.5" />}
               </span>
@@ -96,7 +98,7 @@ export function Scorecard({ run }: { run: Run }) {
                   <span className="font-medium text-ink">{test.label}</span>
                   <span className="rounded border border-rule px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-ink-muted">{test.category}</span>
                 </div>
-                <p className="mt-1 text-sm text-ink-soft">{test.note}</p>
+                <p className="mt-0.5 text-[12px] leading-5 text-ink-muted">{test.note}</p>
               </div>
               <span className={cn("shrink-0 font-mono text-[11px] font-medium uppercase tracking-wider", test.passed ? "text-pass" : "text-accent-strong")}>
                 {test.passed ? "pass" : "fail"}
@@ -107,7 +109,7 @@ export function Scorecard({ run }: { run: Run }) {
       </GlassCard>
       <div className="space-y-6">
         <GeneratedAppCard run={run} />
-        <GlassCard>
+        <GlassCard className="p-4 sm:p-5">
           <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.14em] text-ink-muted"><Trophy className="size-4 text-warn" /> Failure categories</div>
           <div className="mt-4 flex flex-wrap gap-2">
             {run.failureCategories.map((category) => <span key={category} className="rounded border border-rule bg-paper px-2.5 py-1 font-mono text-xs text-ink-soft">{category}</span>)}
@@ -150,12 +152,12 @@ function StageIcon({ status }: { status: Run["stages"][number]["status"] }) {
 
 export function RunTimeline({ run }: { run: Run }) {
   return (
-    <GlassCard>
-      <h2 className="text-2xl font-semibold tracking-[-0.02em] text-ink">Sandbox/run timeline</h2>
-      <ol className="mt-6 divide-y divide-rule overflow-hidden rounded-md border border-rule" aria-label="Sandbox run stages">
+    <GlassCard className="p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3"><h2 className="text-base font-semibold text-ink">Execution timeline</h2><span className="font-mono text-[10px] text-ink-muted">deterministic scoring before diagnosis</span></div>
+      <ol className="mt-3 divide-y divide-rule overflow-hidden rounded border border-rule" aria-label="Sandbox run stages">
         {run.stages.map((stage) => (
-          <li key={stage.label} className="flex gap-4 bg-card px-4 py-4" aria-label={`${stage.label}: ${stage.status}. ${stage.detail}`}>
-            <div className={cn("mt-1 flex size-8 shrink-0 items-center justify-center rounded border", stage.status === "complete" ? "border-pass/30 bg-pass-soft text-pass" : stage.status === "running" ? "border-warn/35 bg-warn-soft text-warn" : "border-rule bg-paper text-ink-muted")}>
+          <li key={stage.label} className="flex gap-3 bg-card px-3 py-3" aria-label={`${stage.label}: ${stage.status}. ${stage.detail}`}>
+            <div className={cn("mt-0.5 flex size-7 shrink-0 items-center justify-center rounded border", stage.status === "complete" ? "border-pass/30 bg-pass-soft text-pass" : stage.status === "running" ? "border-warn/35 bg-warn-soft text-warn" : "border-rule bg-paper text-ink-muted")}>
               <StageIcon status={stage.status} />
             </div>
             <div>
@@ -163,7 +165,7 @@ export function RunTimeline({ run }: { run: Run }) {
                 <div className="font-medium text-ink">{stage.label}</div>
                 <span className="rounded border border-rule bg-paper px-1.5 py-0.5 font-mono text-xs text-ink-muted">{stage.status}</span>
               </div>
-              <div className="mt-1 text-sm leading-6 text-ink-soft">{stage.detail}</div>
+              <div className="mt-0.5 text-[12px] leading-5 text-ink-muted">{stage.detail}</div>
             </div>
           </li>
         ))}
