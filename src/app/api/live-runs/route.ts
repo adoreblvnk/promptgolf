@@ -33,7 +33,11 @@ export async function POST(request: NextRequest) {
         { status: 429, headers: { "Retry-After": "30" } },
       );
     }
-    throw error;
+    console.error("Failed to start live run", error);
+    return NextResponse.json(
+      { error: "The live run could not start. Retry shortly.", code: "live-run-start-failed" },
+      { status: 500 },
+    );
   }
   return NextResponse.json({ id: run.id, runId: run.id, status: run.status, url: `/live-runs/${run.id}` }, { status: 202 });
 }

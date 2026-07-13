@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
 const challengeSlug = "mini-checkout-promo-engine";
 
-test("PromptGolf demo flow renders challenge, leaderboard, and expert run", async ({ page }) => {
+test("PromptGolf demo flow supports Ctrl+Enter submission and renders results", async ({ page }) => {
   const browserErrors: string[] = [];
   page.on("pageerror", (error) => browserErrors.push(error.message));
   page.on("console", (message) => {
@@ -19,12 +19,13 @@ test("PromptGolf demo flow renders challenge, leaderboard, and expert run", asyn
   await expect(page.getByText("Artifact adapters")).toBeVisible();
   await page.goto(`${baseURL}/challenges/mini-checkout-promo-engine`);
 
-  await expect(page.getByRole("heading", { name: "Full Stack Ecommerce Checkout Web App" })).toBeVisible();
-  await expect(page.getByText("Live execution", { exact: true })).toBeVisible();
-  await expect(page.getByText("Integer cents math")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Full Stack Ecommerce Checkout Web App" })).toBeVisible();
+  await expect(page.getByText("live", { exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Evaluation" }).click();
+  await expect(page.getByRole("heading", { name: "How this problem is judged" })).toBeVisible();
 
   await page.getByLabel("Prompt submission").fill("Build checkout with integer cents, case-insensitive promo normalization, stock limits, double-submit lock, shipping threshold order, negative discount floor, loading states, mobile layout, and aria labels.");
-  await page.getByRole("button", { name: /Submit prompt/i }).click();
+  await page.getByLabel("Prompt submission").press("Control+Enter");
 
   await expect(page).toHaveURL(/\/live-runs\/live-/, { timeout: 20_000 });
   await expect(page.getByRole("heading", { name: "Live checkout preview" })).toBeVisible();
@@ -34,7 +35,7 @@ test("PromptGolf demo flow renders challenge, leaderboard, and expert run", asyn
   await expect(page.getByTestId("live-test-results")).toContainText("Integer cents math");
 
   await page.goto(`${baseURL}/leaderboard`);
-  await expect(page.getByRole("heading", { name: "Fewer prompts. More passing tests." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Leaderboard" })).toBeVisible();
   await expect(page.getByText("#1").first()).toBeVisible();
   await expect(page.getByText("Expert ecommerce spec").first()).toBeVisible();
   expect(browserErrors, `Unexpected browser console errors: ${browserErrors.join(" | ")}`).toEqual([]);

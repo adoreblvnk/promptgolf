@@ -12,7 +12,17 @@ export function isTrustedMutationRequest(request: Request) {
   if (!origin) return true;
 
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    const originUrl = new URL(origin);
+    const requestUrl = new URL(request.url);
+    if (originUrl.origin === requestUrl.origin) return true;
+
+    // Reverse proxies and the Next.js development server can rewrite the
+    // request URL host while preserving the browser-facing Host headers.
+    const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+    const browserFacingHost = forwardedHost || request.headers.get("host");
+    const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+    const browserFacingProtocol = forwardedProtocol ? `${forwardedProtocol}:` : requestUrl.protocol;
+    return originUrl.host === browserFacingHost && originUrl.protocol === browserFacingProtocol;
   } catch {
     return false;
   }

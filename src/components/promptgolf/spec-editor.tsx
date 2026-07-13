@@ -6,13 +6,13 @@ import { useFormStatus } from "react-dom";
 import { cn } from "@/lib/utils";
 import { meetsMinimumSpecLength } from "@/lib/promptgolf/spec-validation";
 
-export function SpecEditor({ action, challengeSlug, starterPrompt, maxLength }: { action: (formData: FormData) => void; challengeSlug: string; starterPrompt: string; maxLength: number }) {
+export function SpecEditor({ action, challengeSlug, starterPrompt, minLength, maxLength, submissionError }: { action: (formData: FormData) => void | Promise<void>; challengeSlug: string; starterPrompt: string; minLength: number; maxLength: number; submissionError?: string }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [prompt, setPrompt] = useState(starterPrompt);
   const [lengthCheck, setLengthCheck] = useState<"idle" | "ready" | "short">("idle");
 
   function checkLength() {
-    setLengthCheck(meetsMinimumSpecLength(prompt) ? "ready" : "short");
+    setLengthCheck(meetsMinimumSpecLength(prompt, minLength) ? "ready" : "short");
   }
 
   return (
@@ -40,14 +40,15 @@ export function SpecEditor({ action, challengeSlug, starterPrompt, maxLength }: 
         className="min-h-[300px] flex-1 resize-none bg-[#111317] p-4 font-mono text-[13px] leading-6 text-ink placeholder:text-ink-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-warn/60 sm:p-5"
         aria-label="Prompt submission"
         required
+        minLength={minLength}
         maxLength={maxLength}
         spellCheck={false}
         autoComplete="off"
       />
       <div className="shrink-0 border-t border-rule bg-card">
         <div className="flex min-h-9 items-center justify-between gap-3 border-b border-rule px-3 font-mono text-[10px] text-ink-muted">
-          <span aria-live="polite" className={cn("inline-flex items-center gap-1.5", lengthCheck === "ready" && "text-pass", lengthCheck === "short" && "text-fail")}>
-            {lengthCheck === "ready" ? <><Check className="size-3" aria-hidden="true" /> Length requirement met</> : lengthCheck === "short" ? "Enter at least 20 non-whitespace characters" : "Minimum length: 20 characters"}
+          <span role={submissionError ? "alert" : undefined} aria-live="polite" className={cn("inline-flex items-center gap-1.5", lengthCheck === "ready" && "text-pass", (lengthCheck === "short" || submissionError) && "text-fail")}>
+            {submissionError ?? (lengthCheck === "ready" ? <><Check className="size-3" aria-hidden="true" /> Length requirement met</> : lengthCheck === "short" ? `Enter at least ${minLength} non-whitespace characters` : `Minimum length: ${minLength} characters`)}
           </span>
           <span className="tabular-nums">{prompt.length.toLocaleString()} / {maxLength.toLocaleString()}</span>
         </div>
