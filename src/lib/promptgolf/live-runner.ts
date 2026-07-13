@@ -21,6 +21,8 @@ const EVALUATION_MAX_TOKENS = Number(process.env.PROMPTGOLF_LIVE_EVALUATION_MAX_
 const DAYTONA_CREATE_TIMEOUT_SECONDS = Number(process.env.PROMPTGOLF_DAYTONA_CREATE_TIMEOUT_SECONDS ?? 30);
 const DAYTONA_STEP_TIMEOUT_MS = Number(process.env.PROMPTGOLF_DAYTONA_STEP_TIMEOUT_MS ?? 30000);
 const ALLOW_LOCAL_SANDBOX_FALLBACK = process.env.PROMPTGOLF_ALLOW_LOCAL_SANDBOX_FALLBACK === "1";
+const PREVIEW_PROBE_TIMEOUT_MS = 5_000;
+const MAX_PREVIEW_PROBE_BYTES = 512 * 1024;
 const configuredConcurrency = Number(process.env.PROMPTGOLF_LIVE_RUN_CONCURRENCY ?? 2);
 const configuredQueueCapacity = Number(process.env.PROMPTGOLF_LIVE_RUN_QUEUE_CAPACITY ?? 20);
 const liveRunScheduler = new RunScheduler(
@@ -110,19 +112,34 @@ function observeArtifactContract(id: string, workspace: WorkspaceManifest, provi
   if (missingContract.length) appendLiveRunEvent(id, "generate", "warning", `${provider} artifact missed checkout contract markers: ${missingContract.slice(0, 5).join(", ")}${missingContract.length > 5 ? "…" : ""}. The generated app will be evaluated as-is.`);
 }
 
+export async function probePreview(
+  url: string,
+  fetcher: typeof fetch = fetch,
+): Promise<{ ready: boolean; observation: string }> {
+  try {
+    const response = await fetcher(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(PREVIEW_PROBE_TIMEOUT_MS),
+    });
+    const body = await readBoundedResponseText(response, MAX_PREVIEW_PROBE_BYTES);
+    if (response.ok && /<!doctype html>|<html[\s>]/i.test(body)) {
+      return { ready: true, observation: "HTML preview is ready" };
+    }
+    const bodyPreview = body.replace(/\s+/g, " ").slice(0, 160);
+    return { ready: false, observation: `HTTP ${response.status}; body: ${bodyPreview || "empty"}` };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ready: false, observation: `preview probe failed: ${sanitizeLog(message)}` };
+  }
+}
+
 async function waitForPreviewReady(id: string, url: string) {
   appendLiveRunEvent(id, "sandbox", "info", "Waiting for sandbox preview to serve the generated artifact before starting Playwright.");
   let lastObservation = "no response received";
   for (let attempt = 1; attempt <= 20; attempt += 1) {
-    try {
-      const response = await fetch(url, { cache: "no-store" });
-      const body = await response.text();
-      if (response.ok && /<!doctype html>|<html[\s>]/i.test(body)) return;
-      const bodyPreview = body.replace(/\s+/g, " ").slice(0, 160);
-      lastObservation = `HTTP ${response.status}; body: ${bodyPreview || "empty"}`;
-    } catch {
-      lastObservation = "fetch failed while polling sandbox preview";
-    }
+    const probe = await probePreview(url);
+    if (probe.ready) return;
+    lastObservation = probe.observation;
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
   throw new Error(`Sandbox preview did not serve the generated checkout artifact before the demo timeout (${sanitizeLog(lastObservation)})`);
