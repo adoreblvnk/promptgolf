@@ -28,7 +28,7 @@ export function PromptRunner({ challengeSlug = "mini-checkout-promo-engine" }: {
       />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-3xl text-sm leading-6 text-ink-soft">
-          Submits to the live execution path: Agnes AI builds the checkout artifact, the sandbox serves the preview, TokenRouter drafts cache-friendly evaluator checks, and Playwright scores the generated app as-is. Seeded scorecards remain reference runs.
+          Submits to the live execution path: Moonshot builds the checkout artifact and evaluator drafts, the sandbox serves the preview, and Playwright scores the generated app as-is. Seeded scorecards remain reference runs.
         </p>
         <button
           type="submit"

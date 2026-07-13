@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       policy: getModelPolicy(),
       provider: draft.provider,
       message: ok
-        ? "Generated evaluator drafts came from TokenRouter-first routing for cache-friendly hidden specs, with Agnes AI as fallback. Final scoring still comes from deterministic Playwright execution and PromptGolf's scoring algorithm."
+        ? "Generated evaluator drafts came from Moonshot. Final scoring still comes from deterministic Playwright execution and PromptGolf's scoring algorithm."
         : "No live test-generation adapter completed successfully. Returning an honest degraded state without pretending provider-generated tests exist.",
       tests: draft.tests,
     },

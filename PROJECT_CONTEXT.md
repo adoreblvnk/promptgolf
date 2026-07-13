@@ -59,7 +59,7 @@ User-facing routes:
 - `/` - landing page.
 - `/challenges` - challenge catalog.
 - `/challenges/[slug]` - challenge detail, public brief, prompt guide, and prompt submission.
-- `/live-runs/[id]` - live generated checkout run with SSE timeline, same-origin preview proxy, Playwright results, and Agnes diagnosis.
+- `/live-runs/[id]` - live generated checkout run with SSE timeline, same-origin preview proxy, Playwright results, and Moonshot diagnosis.
 - `/runs/[id]` - seeded/reference scorecard run page.
 - `/leaderboard` - seeded leaderboard.
 
@@ -68,7 +68,7 @@ API routes:
 - `/api/challenges` - challenge listing/data.
 - `/api/runs` - deterministic seeded-run classification for naive/structured/expert prompts.
 - `/api/score` - score computation endpoint.
-- `/api/generate-tests` - TokenRouter-first evaluator draft endpoint with Agnes fallback.
+- `/api/generate-tests` - Moonshot evaluator draft endpoint.
 - `/api/live-runs` - create a live provider-backed run.
 - `/api/live-runs/[id]` - poll live run state without exposing prompt or generated HTML.
 - `/api/live-runs/[id]/events` - stream live run timeline events over SSE.
@@ -176,25 +176,16 @@ Default builder-agent boundary:
 
 Tool-calling and live model paths:
 
-- Use Agnes AI or OpenAI for AI SDK tool-calling flows.
-- Prefer Agnes AI for demo-visible paths because `AGNES_AI_API_KEY` is present.
-- Use OpenAI sparingly as a reliable fallback or when it fits a specific tool-call path better.
-- Do not use the Google AI SDK provider.
-- TokenRouter is the model gateway where possible.
+- Use Moonshot AI for every live model call.
+- Do not use Agnes AI, TokenRouter, OpenAI, or Google for live generation or evaluation.
 
 Configured provider details:
 
 - Daytona sandbox SDK/API: used behind the sandbox adapter for live preview infrastructure.
-- TokenRouter base URL: `https://api.tokenrouter.com/v1`.
-- TokenRouter default model in code: `openai/gpt-5.4-mini` unless overridden by `TOKENROUTER_MODEL`.
-- Agnes AI base URL: `https://apihub.agnes-ai.com/v1`.
-- Agnes default model in code: `agnes-2.0-flash` unless overridden by `AGNES_AI_MODEL`.
-
-OpenAI posture:
-
-- OpenAI credits exist but are limited.
-- Practical fallback picks should come from the user-provided allowlist, such as `gpt-5.4-mini`, `gpt-5-mini`, `gpt-4.1-mini`, `o4-mini`, or `gpt-4o-mini`.
-- Do not invent model names.
+- Moonshot API base URL: `https://api.moonshot.ai/v1`.
+- Moonshot builder model: `kimi-k2.7-code-highspeed` unless overridden by `MOONSHOT_BUILDER_MODEL`.
+- Moonshot evaluation model: `kimi-k2.6` unless overridden by `MOONSHOT_EVALUATION_MODEL`.
+- Daytona uses `DAYTONA_API_KEY` independently as sandbox infrastructure.
 
 ## Live Run Pipeline
 
@@ -206,16 +197,16 @@ Current live execution steps:
 4. Create a Daytona sandbox when credentials are present.
 5. Upload the workspace, run its install/build/start lifecycle, probe its health route, and expose a signed preview URL.
 6. Use the local artifact route only in CI stub mode or explicit local fallback mode.
-7. Route evaluator draft generation through TokenRouter before deterministic scoring.
+7. Route evaluator draft generation through Moonshot before deterministic scoring.
 8. Materialize natural-language evaluator specs into Playwright checks.
-9. Capture desktop/mobile screenshots and ask Agnes AI for UI/UX judgment.
-10. Ask Agnes AI for prompt/technical diagnosis.
+9. Capture desktop/mobile screenshots and ask Moonshot AI for UI/UX judgment.
+10. Ask Moonshot AI for prompt/technical diagnosis.
 11. Stream timeline events over SSE and store safe run state for polling.
 
 Failure policy:
 
-- Missing `AGNES_AI_API_KEY` fails live generation.
-- TokenRouter evaluator draft unavailability fails the current live demo path.
+- Missing `MOONSHOT_API_KEY` fails live generation.
+- Moonshot evaluator draft unavailability fails the current live demo path.
 - Sandbox failures fail the live run unless `PROMPTGOLF_TEST_PROVIDER_STUBS=1` or `PROMPTGOLF_ALLOW_LOCAL_SANDBOX_FALLBACK=1` is set.
 - Provider failures should be shown as unavailable/degraded, not simulated success.
 
@@ -231,9 +222,9 @@ In the UI, show sandboxing as core infrastructure:
 
 If sandbox creation fails or is disabled, label the run disabled/degraded rather than successful.
 
-## TokenRouter Presentation
+## Moonshot Presentation
 
-Use TokenRouter for:
+Use Moonshot for:
 
 - Hidden natural-language spec to evaluator draft generation.
 - Model-routed prompt feedback.
@@ -242,9 +233,9 @@ Use TokenRouter for:
 
 UI copy examples:
 
-- “Tests generated via TokenRouter-routed model call.”
-- “Prompt feedback routed through TokenRouter.”
-- “Model: Codex / OpenAI / Agnes via TokenRouter.”
+- “Tests generated via Moonshot-routed model call.”
+- “Prompt feedback routed through Moonshot.”
+- “Models: Moonshot AI · kimi-k2.7-code-highspeed builder + kimi-k2.6 evaluator.”
 
 ## Scoring
 
@@ -401,7 +392,7 @@ For the current demo, implement only what is needed for the live flow, but never
 5. Show the PromptGolf spec guide.
 6. Submit or show an expert prompt score: hidden tests pass because the spec includes ecommerce edge cases.
 7. Show the leaderboard.
-8. Point to infrastructure: Agnes generates, Daytona sandboxes, TokenRouter routes evaluator drafts, Playwright scores, Agnes diagnoses UI/prompt quality.
+8. Point to infrastructure: Moonshot generates and evaluates, Daytona sandboxes, and Playwright executes the positive behavior checks.
 9. Close: “In the AI-agent era, the scarce skill is not typing code. It is writing specs that survive reality.”
 
 ## Product Success Criteria
@@ -414,7 +405,7 @@ The product is successful if:
 - The prompt/spec guide makes the educational wedge obvious.
 - The demo shows naive vs structured/expert prompts producing different hidden-test scores.
 - The scorecard is visually polished.
-- Sandbox, TokenRouter, and Agnes are represented through credible adapter-backed flows.
+- Daytona and Moonshot are represented through credible adapter-backed flows.
 - The product looks like a full working product, not a notebook or toy dashboard.
 
 Final narrative: PromptGolf is not about memorizing prompt tricks. It is about learning how to specify software to AI agents like a real engineer: with context, constraints, edge cases, validation, and domain knowledge.

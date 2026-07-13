@@ -24,7 +24,7 @@ export function getModelPolicy() {
     unlimitedThrough: "ChatGPT/Codex subscription",
     separateFrom: "OpenAI provider credits",
     toolCalls: false,
-    fallback: "OpenAI provider only for low-credit fallback/tool-call paths; no Google provider is used",
-    liveAdapters: ["sandbox credentials", "TOKENROUTER_API_KEY", "AGNES_AI_API_KEY"],
+    fallback: "Moonshot handles live model calls; no OpenAI, Google, Agnes, or TokenRouter provider is used",
+    liveAdapters: ["DAYTONA_API_KEY", "MOONSHOT_API_KEY"],
   };
 }

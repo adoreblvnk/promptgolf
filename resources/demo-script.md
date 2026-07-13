@@ -34,7 +34,7 @@ Sounds easy. Which is exactly how people ship bugs.”
 
 That’s one prompt. No edge cases. No product rules. No checkout knowledge.
 
-Now the pipeline runs: Agnes AI builds the app, the sandbox serves it live, and TokenRouter routes evaluator/model calls”
+Now the pipeline runs: Moonshot AI builds and evaluates the app, while Daytona serves it in an isolated sandbox.”
 
 ## 1:02-1:24 - Naive result
 
@@ -58,7 +58,7 @@ But now the prompt includes structure and domain knowledge:.”
 
 ## 1:42-1:56 - Expert result
 
-“Agnes builds again. The sandbox serves again. TokenRouter supports the evaluator path again
+“Moonshot builds again. Daytona serves again. Moonshot evaluates again.
 
 Now the score jumps.
 

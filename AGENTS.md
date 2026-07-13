@@ -20,9 +20,9 @@ PromptGolf is a competitive benchmark for agentic prompting: fewer prompts, more
 - shadcn/ui.
 - AI SDK v6.
 - Codex CLI provider for main model usage because the ChatGPT subscription is unlimited there.
-- Agnes AI or OpenAI for AI SDK tool-calling flows; prefer Agnes AI for demo-visible paths and OpenAI as fallback/specific-fit provider.
+- Moonshot AI for all live model calls using `MOONSHOT_API_KEY`.
 - Do not use the Google AI SDK provider.
-- TokenRouter as model gateway where possible.
+
 - Sandbox/run infrastructure behind an adapter where possible.
 - Playwright for deterministic app evaluation.
 
@@ -39,15 +39,14 @@ Codex provider notes:
 
 Tool-calling provider notes:
 
-- OpenAI credits exist but are limited. Use sparingly.
-- Use Agnes AI or OpenAI for AI SDK tool-calling flows. Prefer Agnes AI when it fits because `AGNES_AI_API_KEY` is present; use OpenAI as the reliable fallback or when it fits a specific tool-call path better.
-- Do not invent model names. Use only models from the user's provided `OpenAIChatModelId` allowlist. Practical fallback picks: `gpt-5.4-mini`, `gpt-5-mini`, `gpt-4.1-mini`, `o4-mini`, or `gpt-4o-mini`.
+- Use `kimi-k2.7-code-highspeed` for workspace generation and `kimi-k2.6` for multimodal evaluation and diagnosis.
+- Do not route live generation or evaluation through Agnes AI, TokenRouter, OpenAI, or Google.
 
 Environment/API key notes:
 
 - `.env` already has some keys. Never commit or print real API keys.
-- TokenRouter API base URL: `https://api.tokenrouter.com/v1`.
-- Keep sandbox/TokenRouter/Agnes integrations behind adapters. When keys are absent, report unavailable/degraded state honestly rather than simulating provider success.
+- Moonshot API base URL: `https://api.moonshot.ai/v1`.
+- Keep sandbox and Moonshot integrations behind adapters. When keys are absent, report unavailable/degraded state honestly rather than simulating provider success.
 
 ## Primary challenge
 
@@ -86,8 +85,7 @@ Scoring should reward public tests, hidden tests, UX/style, and fewer prompts. D
 Use:
 
 - Sandbox runner: isolated run/build/test sandbox; if sandbox creation is not enabled, show a real credentialed connectivity/status probe plus an honest disabled/degraded state.
-- TokenRouter: model gateway for hidden-test generation, prompt feedback, tool-calling model paths, and model usage display using `TOKENROUTER_API_KEY`.
-- Agnes AI: model backend/test generator and primary tool-calling provider candidate using `AGNES_AI_API_KEY`.
+- Moonshot AI: sole live model backend for workspace generation, evaluator drafts, visual evaluation, prompt diagnosis, and provider status using `MOONSHOT_API_KEY`.
 
 Do not add unrelated provider integrations unless the scope changes.
 

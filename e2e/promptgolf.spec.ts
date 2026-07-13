@@ -26,7 +26,7 @@ test("PromptGolf demo flow renders challenge, leaderboard, and expert run", asyn
   await page.getByLabel("Prompt submission").fill("Build checkout with integer cents, case-insensitive promo normalization, stock limits, double-submit lock, shipping threshold order, negative discount floor, loading states, mobile layout, and aria labels.");
   await page.getByRole("button", { name: /Submit prompt/i }).click();
 
-  await expect(page).toHaveURL(/\/live-runs\/live-/);
+  await expect(page).toHaveURL(/\/live-runs\/live-/, { timeout: 20_000 });
   await expect(page.getByRole("heading", { name: "Live checkout preview" })).toBeVisible();
   await expect(page.getByTestId("live-log")).toContainText(/CI stub mode|deterministic generated checkout artifact/, { timeout: 20_000 });
   await expect(page.getByTestId("live-run-complete")).toBeAttached({ timeout: 30_000 });
@@ -50,8 +50,7 @@ test("POST /api/runs classifies submissions and reports provider state", async (
   expect(naivePayload.providerState).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ name: "Sandbox", status: "connected", mode: "live" }),
-      expect.objectContaining({ name: "Agnes AI", status: "connected", mode: "live" }),
-      expect.objectContaining({ name: "TokenRouter", status: "connected", mode: "live" }),
+      expect.objectContaining({ name: "Moonshot AI", status: "connected", mode: "live" }),
     ]),
   );
 
@@ -106,7 +105,7 @@ test("POST /api/generate-tests uses provider-mode boundary without real secrets 
   const payload = await response.json();
   await expect(payload).toMatchObject({
     mode: "live-provider",
-    provider: expect.objectContaining({ name: "TokenRouter", status: "connected", mode: "live" }),
+    provider: expect.objectContaining({ name: "Moonshot AI", status: "connected", mode: "live" }),
   });
   expect(payload.tests.length).toBeGreaterThan(0);
 });
