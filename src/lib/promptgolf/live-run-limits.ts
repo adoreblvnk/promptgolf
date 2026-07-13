@@ -1,0 +1,2 @@
+export const MIN_LIVE_PROMPT_LENGTH = 12;
+export const MAX_LIVE_PROMPT_LENGTH = 6000;

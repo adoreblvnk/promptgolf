@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { getChallenge } from "./data";
+import { MAX_LIVE_PROMPT_LENGTH, MIN_LIVE_PROMPT_LENGTH } from "./live-run-limits";
 
-export const MIN_LIVE_PROMPT_LENGTH = 12;
-export const MAX_LIVE_PROMPT_LENGTH = 6000;
+export { MAX_LIVE_PROMPT_LENGTH, MIN_LIVE_PROMPT_LENGTH } from "./live-run-limits";
 
 const liveRunInputSchema = z.object({
   prompt: z.string().trim().min(MIN_LIVE_PROMPT_LENGTH).max(MAX_LIVE_PROMPT_LENGTH),

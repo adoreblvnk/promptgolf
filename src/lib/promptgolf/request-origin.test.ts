@@ -13,6 +13,30 @@ describe("mutation request origin policy", () => {
     expect(isTrustedMutationRequest(request({ "sec-fetch-site": "same-site" }))).toBe(true);
   });
 
+  it("uses browser-facing proxy headers when the internal request URL is rewritten", () => {
+    const proxied = new Request("http://localhost:3431/api/live-runs", {
+      method: "POST",
+      headers: {
+        origin: "http://127.0.0.1:3431",
+        host: "127.0.0.1:3431",
+        "sec-fetch-site": "same-origin",
+      },
+    });
+    expect(isTrustedMutationRequest(proxied)).toBe(true);
+
+    const forwarded = new Request("http://internal:3000/api/live-runs", {
+      method: "POST",
+      headers: {
+        origin: "https://promptgolf.run",
+        host: "internal:3000",
+        "x-forwarded-host": "promptgolf.run",
+        "x-forwarded-proto": "https",
+        "sec-fetch-site": "same-origin",
+      },
+    });
+    expect(isTrustedMutationRequest(forwarded)).toBe(true);
+  });
+
   it("allows API clients without browser provenance headers", () => {
     expect(isTrustedMutationRequest(request())).toBe(true);
   });
