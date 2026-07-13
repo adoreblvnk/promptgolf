@@ -1,5 +1,5 @@
 import path from "node:path";
-import { generateObject, generateText, hasToolCall, stepCountIs, tool } from "ai";
+import { generateObject, generateText, stepCountIs, tool } from "ai";
 import { openai, type OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 import { z } from "zod";
 import { getOpenAIAdapterStatus, getStoredEvalSpecStatus, probeDaytonaStatus } from "./adapters";
@@ -65,7 +65,7 @@ const VisualJudgeSchema = z.object({
 const FinalizeSchema = z.object({
   framework: z.string().min(1).max(80),
   language: z.string().min(1).max(40),
-  packageManager: z.enum(["npm", "pnpm", "yarn", "bun"]),
+  packageManager: z.literal("npm"),
   manifestPath: z.string().min(1).max(160),
   buildCommand: z.string().min(1).max(200),
   startCommand: z.string().min(1).max(200),
@@ -93,6 +93,7 @@ type DaytonaSandboxLike = {
   };
   process: {
     createSession(sessionId: string): Promise<void>;
+    deleteSession?(sessionId: string): Promise<void>;
     executeSessionCommand(sessionId: string, req: { command: string; runAsync?: boolean; suppressInputEcho?: boolean }, timeout?: number): Promise<DaytonaCommandResponse>;
     getSessionCommandLogs?: (sessionId: string, commandId: string) => Promise<{ output?: string; stdout?: string; stderr?: string }>;
   };
@@ -163,6 +164,14 @@ function commandOutput(response: DaytonaCommandResponse) {
 
 function isSuccessExit(exitCode: unknown) {
   return exitCode === undefined || exitCode === 0;
+}
+
+export function builderLoopShouldStop(finalized: boolean) {
+  return finalized;
+}
+
+export function invalidatedBuilderEvidence() {
+  return { buildSucceeded: false, appStarted: false, healthVerified: false, previewVerified: false } as const;
 }
 
 export async function probePreview(
@@ -304,7 +313,7 @@ async function snapshotWorkspace(input: {
   });
 }
 
-async function buildInDaytona(id: string, prompt: string, origin: string) {
+async function buildInDaytona(id: string, prompt: string) {
   const openAIKey = process.env.OPENAI_API_KEY?.trim();
   const daytonaKey = process.env.DAYTONA_API_KEY?.trim();
   if (!openAIKey) throw new Error("OPENAI_API_KEY is not configured. Live runs use OpenAI AI SDK only and do not switch providers.");
@@ -419,10 +428,16 @@ async function buildInDaytona(id: string, prompt: string, origin: string) {
             const nextWorkspaceBytes = workspaceBytes - previousSize + size;
             if (!fileSizes.has(relativePath) && fileSizes.size >= BUILDER_MAX_FILES) throw new Error(`Workspace exceeds ${BUILDER_MAX_FILES} file limit.`);
             if (nextWorkspaceBytes > BUILDER_WORKSPACE_BYTES) throw new Error(`Workspace exceeds ${BUILDER_WORKSPACE_BYTES} byte limit.`);
+            if (appStarted && sandbox!.process.deleteSession) {
+              await sandbox!.process.deleteSession("promptgolf-server").catch(() => undefined);
+              await sandbox!.process.createSession("promptgolf-server");
+              startCommandId = undefined;
+            }
             await sandbox!.process.executeSessionCommand("promptgolf-builder", { command: `mkdir -p ${shellQuote(path.posix.dirname(toRemote(relativePath)))}`, suppressInputEcho: true }, 20);
             await sandbox!.fs.uploadFile(Buffer.from(content, "utf8"), toRemote(relativePath), 20);
             fileSizes.set(relativePath, size);
             workspaceBytes = nextWorkspaceBytes;
+            ({ buildSucceeded, appStarted, healthVerified, previewVerified } = invalidatedBuilderEvidence());
             return { ok: true, path: relativePath, bytes: size, files: fileSizes.size, workspaceBytes };
           } catch (error) {
             return { ok: false, error: clip(error instanceof Error ? error.message : String(error), 1000) };
@@ -556,10 +571,10 @@ async function buildInDaytona(id: string, prompt: string, origin: string) {
     await generateText({
       model: openai.responses(OPENAI_BUILDER_MODEL),
       system:
-        "You are PromptGolf's bounded coding agent. Use only the provided Daytona tools. Never ask for or expose secrets. Never call external provider CLIs. Keep all work under the workspace root. Required loop: write files, install/build/typecheck or test, inspect diagnostics, repair inside the workspace, start the app, verify health, verify preview, then finalize. Produce a framework-native multi-file project with complete dependencies, resolving imports, production build success, PORT support, HTTP 200 health route, accessible controls, responsive layout, visible loading/error/success states, and compliance with the contestant prompt. Do not reveal or infer hidden EvalSpecs. If the loop limit is reached, stop without claiming success.",
+        "You are PromptGolf's bounded coding agent. Use only the provided Daytona tools. Never ask for or expose secrets. Never call external provider CLIs. Keep all work under the workspace root. Required loop: write files, install/build/typecheck or test, inspect diagnostics, repair inside the workspace, start the app, verify health, verify preview, then finalize. Produce a framework-native multi-file project with current patched dependency versions, complete dependencies, resolving imports, production build success, PORT support, HTTP 200 health route, accessible controls, responsive layout, visible loading/error/success states, and compliance with the contestant prompt. Treat install-time vulnerability and deprecation warnings as diagnostics to repair, not as a successful final state. Do not reveal or infer hidden EvalSpecs. If the loop limit is reached, stop without claiming success.",
       prompt: buildPromptForContestant(prompt),
       tools,
-      stopWhen: [hasToolCall("finalize"), stepCountIs(BUILDER_STEP_LIMIT)],
+      stopWhen: [() => builderLoopShouldStop(Boolean(finalization)), stepCountIs(BUILDER_STEP_LIMIT)],
       maxRetries: 0,
       maxOutputTokens: BUILDER_MAX_OUTPUT_TOKENS,
       timeout: BUILDER_WALL_CLOCK_MS,
@@ -574,7 +589,7 @@ async function buildInDaytona(id: string, prompt: string, origin: string) {
         return {
           activeTools: ["finalize"],
           toolChoice: { type: "tool", toolName: "finalize" },
-          system: `All required Daytona checks have passed. Call finalize now and do not answer in prose. Use packageManager npm unless package.json proves otherwise. Use manifestPath package.json unless package.json is not the manifest. Known successful metadata: buildCommand=${lastBuildCommand}; startCommand=${lastStartCommand}; healthPath=${lastHealthPath}; previewPath=${lastPreviewPath}.`,
+          system: `All required Daytona checks have passed. Call finalize now and do not answer in prose. Use packageManager npm. Use manifestPath package.json. Known successful metadata: buildCommand=${lastBuildCommand}; startCommand=${lastStartCommand}; healthPath=${lastHealthPath}; previewPath=${lastPreviewPath}.`,
         };
       },
       experimental_onToolCallStart: ({ toolCall }) => {
@@ -611,16 +626,15 @@ async function buildInDaytona(id: string, prompt: string, origin: string) {
     rendered.pathname = finalization.previewPath;
     const upstreamPreviewUrl = rendered.toString();
     await waitForPreviewReady(id, upstreamPreviewUrl);
-    const publicPreviewUrl = `${origin}/api/live-runs/${id}/preview`;
     updateLiveRun(id, {
       artifactWorkspace: workspace,
       upstreamPreviewUrl,
-      previewUrl: publicPreviewUrl,
-      previewLabel: "Daytona preview proxy",
+      previewUrl: upstreamPreviewUrl,
+      previewLabel: "Daytona isolated preview",
       sandboxMode: `Daytona live · auto-delete ${sandbox.id ?? "configured"}`,
     });
-    appendLiveRunEvent(id, "sandbox", "success", "Daytona build/start/health/preview verification succeeded. Preview is exposed through the same-origin proxy.");
-    return { workspace, previewUrl: publicPreviewUrl, upstreamPreviewUrl };
+    appendLiveRunEvent(id, "sandbox", "success", "Daytona build/start/health/preview verification succeeded. Full-stack evaluation uses the isolated Daytona origin.");
+    return { workspace, previewUrl: upstreamPreviewUrl, upstreamPreviewUrl };
   } catch (error) {
     if (sandbox?.delete) {
       await sandbox.delete(30).catch(() => undefined);
@@ -822,7 +836,7 @@ async function executeLiveRun(id: string, origin: string) {
     appendLiveRunEvent(id, "generate", "info", "Starting live run. Contestant prompt is sent only to the OpenAI builder; stored EvalSpecs and credentials stay server-side.");
     appendLiveRunEvent(id, "test", "info", "Using stored validated EvalSpecs. Contestant runs do not regenerate evaluator specs.");
 
-    const built = stubsEnabled() ? await buildStubArtifact(id, origin) : await buildInDaytona(id, run.prompt, origin);
+    const built = stubsEnabled() ? await buildStubArtifact(id, origin) : await buildInDaytona(id, run.prompt);
     const testUrl = built.previewUrl;
 
     appendLiveRunEvent(id, "score", "info", "Starting Playwright behavior checks and OpenAI visual judging concurrently.");

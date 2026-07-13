@@ -210,7 +210,7 @@ export function LiveRunView({ id }: { id: string }) {
   }, [id]);
 
   const testsSignature = useMemo(() => run?.tests.map((test) => `${test.id}:${test.passed}`).join("|") ?? "", [run?.tests]);
-  const previewSrc = run?.previewUrl ? `/api/live-runs/${id}/preview` : undefined;
+  const previewSrc = run?.previewUrl;
 
   useEffect(() => {
     latestTestsRef.current = run?.tests ?? [];
@@ -237,7 +237,13 @@ export function LiveRunView({ id }: { id: string }) {
         }
         await wait(150);
       }
-      if (!doc || cancelled) return;
+      if (!doc || cancelled) {
+        if (!cancelled) {
+          setReplayIndex(checks.length);
+          setReplayedSignature(testsSignature);
+        }
+        return;
+      }
       injectStyles(doc);
       setPreviewHeight(measuredFrameHeight(iframeRef.current));
 
@@ -302,12 +308,12 @@ export function LiveRunView({ id }: { id: string }) {
             <span className={cn("rounded border px-2.5 py-1 font-mono text-xs", connected ? "border-pass/30 bg-pass-soft text-pass" : "border-warn/35 bg-warn-soft text-warn")}>{connected ? "SSE connected" : "polling active"}</span>
           </div>
         </div>
-        <div className="grid items-start gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="border-b border-rule p-4 lg:border-b-0 lg:border-r">
+        <div className="grid min-w-0 items-start gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="min-w-0 border-b border-rule p-4 lg:border-b-0 lg:border-r">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <h1 className="text-xl font-semibold tracking-[-0.02em] text-ink">Live checkout preview</h1>
-                <p className="mt-1 text-sm text-ink-soft">The generated app is the evidence. Playwright replays checks over this frame when scoring finishes.</p>
+                <p className="mt-1 text-sm text-ink-soft">The generated app is the evidence. Playwright evaluates it directly in its isolated Daytona origin.</p>
               </div>
               {run.previewUrl && <a className="hidden min-h-10 items-center rounded-md bg-ink px-4 text-sm font-medium text-paper transition-colors hover:bg-ink/90 sm:inline-flex" href={run.previewUrl} target="_blank" rel="noreferrer">Open app</a>}
             </div>
@@ -322,14 +328,14 @@ export function LiveRunView({ id }: { id: string }) {
                 <span className="rounded bg-pass-soft px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider text-pass">{run.previewLabel ?? "pending"}</span>
               </div>
               {previewSrc ? (
-                <iframe ref={iframeRef} title="Generated checkout preview" src={previewSrc} sandbox="allow-scripts allow-same-origin" className="w-full bg-white" style={{ height: previewHeight }} onLoad={() => setPreviewHeight(measuredFrameHeight(iframeRef.current))} />
+                <iframe ref={iframeRef} title="Generated checkout preview" src={previewSrc} sandbox="allow-scripts allow-same-origin allow-forms" className="w-full bg-white" style={{ height: previewHeight }} onLoad={() => setPreviewHeight(measuredFrameHeight(iframeRef.current))} />
               ) : (
                 <div className="flex items-center justify-center border-t border-dashed border-rule bg-paper text-sm text-ink-muted" style={{ height: DEFAULT_PREVIEW_HEIGHT }}>Preview appears after the OpenAI builder finalizes and Daytona health checks pass.</div>
               )}
             </div>
           </div>
 
-          <aside className="flex flex-col gap-3 p-3 sm:p-4 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:overscroll-contain">
+          <aside className="flex min-w-0 flex-col gap-3 p-3 sm:p-4 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:overscroll-contain">
             <div className="rounded-lg border border-rule bg-paper p-3">
               <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-muted">Results</div>
               <div className="mt-1.5 font-mono text-4xl font-semibold tabular-nums tracking-[-0.04em] text-ink" data-testid="live-score">{scoreText}</div>
