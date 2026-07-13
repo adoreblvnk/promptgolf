@@ -1,4 +1,6 @@
 import { redactSecrets } from "./redact-secrets";
+import { boundedEnvNumber } from "./env-number";
+import { readBoundedResponseText } from "./provider-response";
 
 export type ProviderMode = "default" | "live" | "unavailable" | "degraded" | "fallback";
 
@@ -21,8 +23,16 @@ const AGNES_AI_BASE_URL = process.env.AGNES_AI_BASE_URL ?? "https://apihub.agnes
 const TOKENROUTER_BASE_URL = process.env.TOKENROUTER_API_BASE_URL ?? "https://api.tokenrouter.com/v1";
 const TOKENROUTER_MODEL = process.env.TOKENROUTER_MODEL ?? "openai/gpt-5.4-mini";
 const AGNES_AI_MODEL = process.env.AGNES_AI_MODEL ?? "agnes-2.0-flash";
-const PROVIDER_TIMEOUT_MS = Number(process.env.PROMPTGOLF_PROVIDER_TIMEOUT_MS ?? 12000);
-const PROVIDER_MAX_TOKENS = Number(process.env.PROMPTGOLF_PROVIDER_MAX_TOKENS ?? 80);
+const PROVIDER_TIMEOUT_MS = boundedEnvNumber(process.env.PROMPTGOLF_PROVIDER_TIMEOUT_MS, 12_000, {
+  min: 1_000,
+  max: 60_000,
+  integer: true,
+});
+const PROVIDER_MAX_TOKENS = boundedEnvNumber(process.env.PROMPTGOLF_PROVIDER_MAX_TOKENS, 80, {
+  min: 16,
+  max: 1_024,
+  integer: true,
+});
 
 function hasKey(name: string) {
   return Boolean(process.env[name]?.trim());
@@ -141,7 +151,7 @@ async function generateRawOpenAICompatibleText({
     signal,
   });
 
-  const rawBody = await response.text();
+  const rawBody = await readBoundedResponseText(response);
   let data: unknown;
   try {
     data = rawBody ? JSON.parse(rawBody) : undefined;
