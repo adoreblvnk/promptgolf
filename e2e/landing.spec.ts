@@ -17,6 +17,13 @@ test("landing comparator exposes tabs, keyboard selection, and live updates", as
   await expect(panel).toHaveAttribute("aria-labelledby", "spec-state-naive-checkout");
   await expect(panel.getByText("Happy-path checkout", { exact: true })).toBeVisible();
 
+  await expect.poll(async () => {
+    await structured.click();
+    return structured.getAttribute("aria-selected");
+  }).toBe("true");
+  await naive.click();
+  await expect(naive).toHaveAttribute("aria-selected", "true");
+
   await naive.focus();
   await naive.press("ArrowRight");
   await expect(structured).toBeFocused();
@@ -42,15 +49,11 @@ test("landing has no horizontal overflow at a true 390px viewport", async ({ pag
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
 
-  const dimensions = await page.evaluate(() => ({
+  await expect.poll(() => page.evaluate(() => ({
     innerWidth: window.innerWidth,
-    documentWidth: document.documentElement.scrollWidth,
-    bodyWidth: document.body.scrollWidth,
-  }));
-
-  expect(dimensions.innerWidth).toBe(390);
-  expect(dimensions.documentWidth).toBeLessThanOrEqual(390);
-  expect(dimensions.bodyWidth).toBeLessThanOrEqual(390);
+    documentFits: document.documentElement.scrollWidth <= 390,
+    bodyFits: document.body.scrollWidth <= 390,
+  }))).toEqual({ innerWidth: 390, documentFits: true, bodyFits: true });
 });
 
 test("landing navigation stays named, tappable, and contained at 320px", async ({ page }) => {
@@ -69,40 +72,36 @@ test("landing navigation stays named, tappable, and contained at 320px", async (
   await expect(navigation).toBeVisible();
   await expect(home).toBeVisible();
 
-  const navigationBox = await navigation.boundingBox();
-  expect(navigationBox).not.toBeNull();
-  expect(navigationBox?.height).toBe(52);
+  await expect.poll(async () => (await navigation.boundingBox())?.height).toBe(52);
 
   for (const { name, mobileLabel } of destinations) {
     const link = navigation.getByRole("link", { name });
     await expect(link).toBeVisible();
+    await expect(link.locator("span").first()).toBeVisible();
     await expect(link.locator("span").first()).toHaveText(mobileLabel);
+    await expect(link.locator("span").nth(1)).toBeHidden();
   }
 
   for (const link of [home, ...destinations.map(({ name }) => navigation.getByRole("link", { name }))]) {
-    const box = await link.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box?.height).toBeGreaterThanOrEqual(44);
-    expect(box?.width).toBeGreaterThanOrEqual(44);
+    await expect.poll(async () => {
+      const box = await link.boundingBox();
+      return Boolean(box && box.height >= 44 && box.width >= 44);
+    }).toBe(true);
   }
 
-  const dimensions = await page.evaluate(() => ({
+  await expect.poll(() => page.evaluate(() => ({
     innerWidth: window.innerWidth,
-    documentWidth: document.documentElement.scrollWidth,
-    bodyWidth: document.body.scrollWidth,
-  }));
-
-  expect(dimensions.innerWidth).toBe(320);
-  expect(dimensions.documentWidth).toBeLessThanOrEqual(320);
-  expect(dimensions.bodyWidth).toBeLessThanOrEqual(320);
+    documentFits: document.documentElement.scrollWidth <= 320,
+    bodyFits: document.body.scrollWidth <= 320,
+  }))).toEqual({ innerWidth: 320, documentFits: true, bodyFits: true });
 
   await page.setViewportSize({ width: 1024, height: 768 });
   const player = navigation.getByRole("link", { name: "Player 01" });
   await expect(player).toBeVisible();
-  const playerBox = await player.boundingBox();
-  expect(playerBox).not.toBeNull();
-  expect(playerBox?.height).toBeGreaterThanOrEqual(44);
-  expect(playerBox?.width).toBeGreaterThanOrEqual(44);
+  await expect.poll(async () => {
+    const box = await player.boundingBox();
+    return Boolean(box && box.height >= 44 && box.width >= 44);
+  }).toBe(true);
 });
 
 test("landing comparator removes state-change motion when reduced motion is preferred", async ({ page }) => {
