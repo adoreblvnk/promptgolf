@@ -16,8 +16,14 @@ describe("public-boundary secret redaction", () => {
     expect(sanitized).not.toContain("provider-secret");
   });
 
+  it("redacts Moonshot key references and account identifiers from billing errors", () => {
+    expect(redactSecrets("account org-exampleaccount123 <ak-examplekey123> suspended")).toBe(
+      "account [redacted-account] <[redacted-key]> suspended",
+    );
+  });
+
   it("preserves useful non-secret provider context and bounds public output", () => {
-    expect(redactSecrets("Agnes returned HTTP 429: quota exceeded")).toBe("Agnes returned HTTP 429: quota exceeded");
+    expect(redactSecrets("Moonshot returned HTTP 429: quota exceeded")).toBe("Moonshot returned HTTP 429: quota exceeded");
     expect(redactSecrets("x".repeat(20), 8)).toBe("xxxxxxxx");
   });
 });
