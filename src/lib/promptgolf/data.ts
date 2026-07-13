@@ -17,6 +17,11 @@ export type Challenge = {
   publicRequirements: string[];
   hiddenTeasers: string[];
   guide: string[];
+  evaluation: {
+    behavior: string[];
+    specCompleteness: "requirement tree";
+    artifactAdapter: string;
+  };
 };
 
 export type RunStage = {
@@ -117,7 +122,10 @@ export const challenges: Challenge[] = [
     subtitle: "A production checkout brief where vague specs collapse under real commerce edge cases.",
     difficulty: "intermediate",
     status: "live",
-    category: "full-stack", categoryLabel: "Full-stack & web", artifact: "web", framework: "Next.js 16",
+    category: "full-stack",
+    categoryLabel: "Full-stack & web",
+    artifact: "web",
+    framework: "Next.js 16",
     estimatedMinutes: 12,
     publicBrief: "Build a full-stack ecommerce checkout web app with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation.",
     thesis: "The visible checkout is the easy part. Hidden tests reveal whether your spec encodes cents math, stock rules, async safety, and mobile checkout behavior.",
@@ -135,6 +143,11 @@ export const challenges: Challenge[] = [
       "Name edge cases explicitly: stock, invalid promos, quantity limits, double-submit, loading, and mobile.",
       "End with acceptance criteria that map to deterministic tests instead of subjective vibes.",
     ],
+    evaluation: {
+      behavior: ["deterministic", "state-machine"],
+      specCompleteness: "requirement tree",
+      artifactAdapter: "web-app-adapter",
+    }
   },
   {
     slug: "team-invites-role-management",
@@ -142,30 +155,295 @@ export const challenges: Challenge[] = [
     subtitle: "SaaS settings workflow with hidden lifecycle and permission traps.",
     difficulty: "expert",
     status: "preview",
-    category: "domain-workflows", categoryLabel: "Domain workflows", artifact: "web", framework: "Next.js 16",
+    category: "domain-workflows",
+    categoryLabel: "Domain workflows",
+    artifact: "web",
+    framework: "Next.js 16",
     estimatedMinutes: 18,
     publicBrief: "Build a team settings page where an owner can invite users, view pending invites, accept invites, and manage roles.",
     thesis: "CRUD is not enough: hidden tests check duplicate invites, single-use tokens, last-owner protection, and role authorization.",
     publicRequirements: ["Invite by email", "List members and pending invites", "Change roles", "Cancel or resend invites"],
     hiddenTeasers: ["Email normalization", "Duplicate invite prevention", "Single-use tokens", "Last owner protection", "Danger confirmations"],
     guide: ["Specify permission matrix", "Define invite lifecycle", "Add irreversible-action confirmations", "Prove failure states."],
+    evaluation: {
+      behavior: ["deterministic"],
+      specCompleteness: "requirement tree",
+      artifactAdapter: "web-app-adapter",
+    }
   },
   {
-    slug: "idempotent-payment-webhooks", title: "Idempotent Payment Webhooks", subtitle: "Retries, ordering, and atomicity are the product.", difficulty: "expert", status: "preview", category: "backend-api", categoryLabel: "Backend & API", artifact: "api", framework: "Node.js API", estimatedMinutes: 22,
-    publicBrief: "Build an API that receives signed payment events and updates order state safely across retries.", thesis: "Positive evidence covers signature validation, idempotent retries, ordering, and observable recovery.", publicRequirements: ["Receive signed events", "Update order state", "Return stable responses"], hiddenTeasers: ["Retry idempotency", "Event ordering", "Atomic updates"], guide: ["Define the state machine", "Specify retries", "Cover concurrency"],
+    slug: "idempotent-payment-webhooks",
+    title: "Idempotent Payment Webhooks",
+    subtitle: "Retries, ordering, and atomicity are the product.",
+    difficulty: "expert",
+    status: "preview",
+    category: "backend-api",
+    categoryLabel: "Backend & API",
+    artifact: "api",
+    framework: "Node.js API",
+    estimatedMinutes: 22,
+    publicBrief: "Build an API that receives signed payment events and updates order state safely across retries.",
+    thesis: "Positive evidence covers signature validation, idempotent retries, ordering, and observable recovery.",
+    publicRequirements: ["Receive signed events", "Update order state", "Return stable responses"],
+    hiddenTeasers: ["Retry idempotency", "Event ordering", "Atomic updates"],
+    guide: ["Define the state machine", "Specify retries", "Cover concurrency"],
+    evaluation: {
+      behavior: ["state-machine", "property-based"],
+      specCompleteness: "requirement tree",
+      artifactAdapter: "api-adapter",
+    }
   },
   {
-    slug: "messy-csv-reconciliation", title: "Messy CSV Reconciliation", subtitle: "Turn inconsistent exports into an explainable ledger.", difficulty: "intermediate", status: "preview", category: "data-ml", categoryLabel: "Data & ML", artifact: "pipeline", framework: "Python pipeline", estimatedMinutes: 20,
-    publicBrief: "Build a pipeline that reconciles transaction CSVs and emits matched, unmatched, and summary outputs.", thesis: "Properties check normalization, decimal-safe totals, duplicates, and provenance.", publicRequirements: ["Ingest CSVs", "Normalize records", "Export audit results"], hiddenTeasers: ["Encoding variance", "Decimal precision", "Duplicate records"], guide: ["Define canonical fields", "Preserve provenance", "Add invariants"],
+    slug: "messy-csv-reconciliation",
+    title: "Messy CSV Reconciliation",
+    subtitle: "Turn inconsistent exports into an explainable ledger.",
+    difficulty: "intermediate",
+    status: "preview",
+    category: "data-ml",
+    categoryLabel: "Data & ML",
+    artifact: "pipeline",
+    framework: "Python pipeline",
+    estimatedMinutes: 20,
+    publicBrief: "Build a pipeline that reconciles transaction CSVs and emits matched, unmatched, and summary outputs.",
+    thesis: "Properties check normalization, decimal-safe totals, duplicates, and provenance.",
+    publicRequirements: ["Ingest CSVs", "Normalize records", "Export audit results"],
+    hiddenTeasers: ["Encoding variance", "Decimal precision", "Duplicate records"],
+    guide: ["Define canonical fields", "Preserve provenance", "Add invariants"],
+    evaluation: {
+      behavior: ["property-based"],
+      specCompleteness: "requirement tree",
+      artifactAdapter: "pipeline-adapter",
+    }
   },
   {
-    slug: "resumable-file-sync-cli", title: "Resumable File Sync CLI", subtitle: "A CLI tested through interruptions and repeat runs.", difficulty: "expert", status: "preview", category: "systems-cli", categoryLabel: "Systems & CLI", artifact: "cli", framework: "Node.js CLI", estimatedMinutes: 24,
-    publicBrief: "Build a CLI that synchronizes a directory with dry-run output and resumable transfers.", thesis: "State traces prove safe resume, deterministic dry runs, useful exit codes, and scriptable progress.", publicRequirements: ["Sync a directory", "Support dry run", "Resume work"], hiddenTeasers: ["Interrupted resume", "Convergence", "Exit codes"], guide: ["Specify exits", "Model interruptions", "Define convergence"],
+    slug: "resumable-file-sync-cli",
+    title: "Resumable File Sync CLI",
+    subtitle: "A CLI tested through interruptions and repeat runs.",
+    difficulty: "expert",
+    status: "preview",
+    category: "systems-cli",
+    categoryLabel: "Systems & CLI",
+    artifact: "cli",
+    framework: "Node.js CLI",
+    estimatedMinutes: 24,
+    publicBrief: "Build a CLI that synchronizes a directory with dry-run output and resumable transfers.",
+    thesis: "State traces prove safe resume, deterministic dry runs, useful exit codes, and scriptable progress.",
+    publicRequirements: ["Sync a directory", "Support dry run", "Resume work"],
+    hiddenTeasers: ["Interrupted resume", "Convergence", "Exit codes"],
+    guide: ["Specify exits", "Model interruptions", "Define convergence"],
+    evaluation: {
+      behavior: ["state-machine"],
+      specCompleteness: "requirement tree",
+      artifactAdapter: "cli-adapter",
+    }
   },
   {
-    slug: "rate-limit-abuse-controls", title: "Rate Limit + Abuse Controls", subtitle: "Reliability controls correct at boundaries and under concurrency.", difficulty: "expert", status: "preview", category: "security-reliability", categoryLabel: "Security & reliability", artifact: "api", framework: "HTTP service", estimatedMinutes: 20,
-    publicBrief: "Build rate-limit middleware with tenant policies, response metadata, and an audit trail.", thesis: "Evidence checks policy boundaries, concurrency, recovery, and client feedback—not a preferred algorithm.", publicRequirements: ["Enforce tenant limits", "Return metadata", "Record decisions"], hiddenTeasers: ["Window boundaries", "Concurrency", "Tenant isolation"], guide: ["Define policy semantics", "Specify contracts", "Make decisions observable"],
+    slug: "rate-limit-abuse-controls",
+    title: "Rate Limit + Abuse Controls",
+    subtitle: "Reliability controls correct at boundaries and under concurrency.",
+    difficulty: "expert",
+    status: "preview",
+    category: "security-reliability",
+    categoryLabel: "Security & reliability",
+    artifact: "api",
+    framework: "HTTP service",
+    estimatedMinutes: 20,
+    publicBrief: "Build rate-limit middleware with tenant policies, response metadata, and an audit trail.",
+    thesis: "Evidence checks policy boundaries, concurrency, recovery, and client feedback—not a preferred algorithm.",
+    publicRequirements: ["Enforce tenant limits", "Return metadata", "Record decisions"],
+    hiddenTeasers: ["Window boundaries", "Concurrency", "Tenant isolation"],
+    guide: ["Define policy semantics", "Specify contracts", "Make decisions observable"],
+    evaluation: {
+      behavior: ["property-based", "fuzzing"],
+      specCompleteness: "requirement tree",
+      artifactAdapter: "api-adapter",
+    }
   },
+  {
+    slug: "rate-limiter",
+    title: "Rate Limiter",
+    subtitle: "A limit per client and one method. Who counts as the same client is the whole game.",
+    difficulty: "expert",
+    status: "preview",
+    category: "security-reliability",
+    categoryLabel: "Security & reliability",
+    artifact: "api",
+    framework: "HTTP service",
+    estimatedMinutes: 10,
+    publicBrief: "Implement a RateLimiter(limit, windowMs) with allow(key, nowMs). Each client key gets its own sliding window.",
+    thesis: "The sliding window is the easy part the model builds for free. The hidden test is who counts as the same client.",
+    publicRequirements: [
+      "constructor(limit, windowMs) and allow(key, nowMs) returning true (permitted) or false (rejected).",
+      "Each client key is rate-limited independently on its own sliding window over the trailing windowMs.",
+      "Once a key's earlier requests fall outside the window, that key is allowed through again.",
+    ],
+    hiddenTeasers: [
+      "Same client, different spelling: two keys that refer to the same client must share one budget.",
+      "Differential fuzz: hundreds of random multi-client streams, with each client arriving under several spellings.",
+    ],
+    guide: [
+      "Restate the goal in one line: a sliding window per client, plus a rule for who counts as the same client.",
+      "The sliding window is the floor. Spend your spec on the key: name exactly how two keys are judged to be the same client.",
+    ],
+    evaluation: {
+      behavior: ["property-based", "fuzzing"],
+      specCompleteness: "requirement tree",
+      artifactAdapter: "api-adapter",
+    }
+  },
+  {
+    slug: "idempotent-charge",
+    title: "Charge Processor",
+    subtitle: "A processor, one method, a request key. What happens when the same request arrives twice is the whole game.",
+    difficulty: "expert",
+    status: "preview",
+    category: "backend-api",
+    categoryLabel: "Backend & API",
+    artifact: "api",
+    framework: "Node.js API",
+    estimatedMinutes: 10,
+    publicBrief: "Implement a PaymentProcessor with charge(ref, amountCents): it processes a charge and returns { chargeId, amountCents }.",
+    thesis: "Recording a charge and minting an id is the easy part. The hidden test is what happens when a client retries.",
+    publicRequirements: [
+      "charge(ref, amountCents) returning { chargeId, amountCents }.",
+      "A first-seen ref is charged for the amountCents it was given.",
+      "ref is a string the caller passes in with the charge; amountCents is an integer number of cents.",
+    ],
+    hiddenTeasers: [
+      "Retried request, one charge: a request that arrives again under a ref already handled must not become a second charge.",
+    ],
+    guide: [
+      "Restate the goal in one line: process a charge per call, plus a rule for what a repeat of the same ref means.",
+      "Spend your spec on the repeat: name exactly what happens when a ref arrives a second time.",
+    ],
+    evaluation: {
+      behavior: ["deterministic", "state-machine"],
+      specCompleteness: "requirement tree",
+      artifactAdapter: "api-adapter",
+    }
+  },
+  {
+    slug: "buried-answers",
+    title: "Buried Answers",
+    subtitle: "A search function, a pile of docs, a question. Whether it surfaces the real answer is the whole game.",
+    difficulty: "expert",
+    status: "preview",
+    category: "data-ml",
+    categoryLabel: "Data & ML",
+    artifact: "pipeline",
+    framework: "Python pipeline",
+    estimatedMinutes: 11,
+    publicBrief: "Implement retrieve(documents, query, k): return at most k passages from the documents, best match first.",
+    thesis: "Scoring passages by how many query words they contain is the easy part. The hidden test is semantic search where the answer is written in different words.",
+    publicRequirements: [
+      "retrieve(documents, query, k) returning at most k passage strings, best match first.",
+      "A plain keyword question whose answer sits in a short page lands in the top k.",
+    ],
+    hiddenTeasers: [
+      "When the question and the answer are written in different words, the search still has to reach the answer.",
+    ],
+    guide: [
+      "Restate the goal in one line: return the k passages most likely to hold the answer, best first.",
+      "Name what to do when the question's words and the answer's words differ.",
+    ],
+    evaluation: {
+      behavior: ["deterministic", "property-based"],
+      specCompleteness: "requirement tree",
+      artifactAdapter: "pipeline-adapter",
+    }
+  },
+  {
+    slug: "interest-accrual",
+    title: "Interest Accrual",
+    subtitle: "Principal, a rate, two dates, one number. How you count the days between them is the whole game.",
+    difficulty: "expert",
+    status: "preview",
+    category: "domain-workflows",
+    categoryLabel: "Domain workflows",
+    artifact: "pipeline",
+    framework: "TypeScript",
+    estimatedMinutes: 10,
+    publicBrief: "Implement accruedInterest(principal, annualRate, startISO, endISO): the interest that accrues on a principal at an annual rate over the date range.",
+    thesis: "Multiplying principal by rate by a time fraction is the easy part. The hidden test is how you turn two calendar dates into a span.",
+    publicRequirements: [
+      "accruedInterest(principal, annualRate, startISO, endISO) returning a number; equal dates return 0.",
+      "Interest is principal times annualRate times the fraction of a year the range covers.",
+    ],
+    hiddenTeasers: [
+      "Month-end day count: the day-count convention is exactly where a vague spec drifts.",
+    ],
+    guide: [
+      "Restate the goal in one line: principal times rate times a year fraction.",
+      "Spend your spec on the day count: name exactly which convention governs and how it counts days.",
+    ],
+    evaluation: {
+      behavior: ["property-based", "fuzzing"],
+      specCompleteness: "requirement tree",
+      artifactAdapter: "pipeline-adapter",
+    }
+  },
+  {
+    slug: "build-a-pool-allocator",
+    title: "Fixed-Block Pool Allocator",
+    subtitle: "Three functions in C. The memory you forget to give back is the whole game.",
+    difficulty: "expert",
+    status: "preview",
+    category: "systems-cli",
+    categoryLabel: "Systems & CLI",
+    artifact: "cli",
+    framework: "C compiler",
+    estimatedMinutes: 12,
+    publicBrief: "Implement a fixed-block memory pool in C: pool_init(buf, buf_size, block_size), pool_alloc() returns one block, pool_free(ptr) returns it.",
+    thesis: "The signature is trivial. The hidden tests are the allocator laws a vague spec forgets.",
+    publicRequirements: [
+      "pool_init carves the buffer into fixed-size blocks.",
+      "pool_alloc returns one 8-byte-aligned block from the buffer.",
+      "pool_free returns a block to the pool.",
+    ],
+    hiddenTeasers: [
+      "Exhaustion returns NULL: a full pool must refuse.",
+      "Reuse after free: a freed block must be handed back.",
+    ],
+    guide: [
+      "Restate the goal in one line, then specify the full lifecycle of a block before any layout.",
+    ],
+    evaluation: {
+      behavior: ["deterministic", "property-based"],
+      specCompleteness: "requirement tree",
+      artifactAdapter: "cli-adapter",
+    }
+  },
+  {
+    slug: "events-schema",
+    title: "The Guest List",
+    subtitle: "Three tables and a count. The constraints you forget are the bugs in production.",
+    difficulty: "intermediate",
+    status: "preview",
+    category: "backend-api",
+    categoryLabel: "Backend & API",
+    artifact: "pipeline",
+    framework: "SQLite 3",
+    estimatedMinutes: 11,
+    publicBrief: "Design the SQLite schema for a small events / RSVP system: events with a capacity, users, and RSVPs.",
+    thesis: "Anyone can write three CREATE TABLEs. The hidden tests are the relational rules a vague schema forgets.",
+    publicRequirements: [
+      "Tables events (name, capacity), users (email), and rsvps linking a user to an event.",
+      "Each table has an integer primary key named id.",
+      "A view event_attendance reporting a count of attendees per event.",
+    ],
+    hiddenTeasers: [
+      "No double-RSVP: the same user can't RSVP to the same event twice.",
+      "Clean delete: removing an event must remove its RSVPs.",
+    ],
+    guide: [
+      "Restate the system in one line, then specify each table's columns and the rules that bind them before any SQL.",
+    ],
+    evaluation: {
+      behavior: ["deterministic", "property-based"],
+      specCompleteness: "requirement tree",
+      artifactAdapter: "pipeline-adapter",
+    }
+  }
 ];
 
 export const challengeCategories = Array.from(new Map(challenges.map(({ category, categoryLabel }) => [category, categoryLabel])).entries()).map(([id, label]) => ({ id, label }));
