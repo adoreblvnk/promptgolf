@@ -49,8 +49,9 @@ test("POST /api/runs classifies submissions and reports provider state", async (
   await expect(naivePayload).toMatchObject({ classification: "naive", runId: "naive-checkout", mode: "seeded-local-run" });
   expect(naivePayload.providerState).toEqual(
     expect.arrayContaining([
-      expect.objectContaining({ name: "Sandbox", status: "connected", mode: "live" }),
-      expect.objectContaining({ name: "Moonshot AI", status: "connected", mode: "live" }),
+      expect.objectContaining({ name: "Daytona", status: "connected", mode: "live" }),
+      expect.objectContaining({ name: "OpenAI", status: "connected", mode: "live" }),
+      expect.objectContaining({ name: "Stored EvalSpecs", status: "connected", mode: "stored" }),
     ]),
   );
 
@@ -104,8 +105,8 @@ test("POST /api/generate-tests uses provider-mode boundary without real secrets 
   await expect(response).toBeOK();
   const payload = await response.json();
   await expect(payload).toMatchObject({
-    mode: "live-provider",
-    provider: expect.objectContaining({ name: "Moonshot AI", status: "connected", mode: "live" }),
+    mode: "stored-evalspecs",
+    provider: expect.objectContaining({ name: "Stored EvalSpecs", status: "connected", mode: "stored" }),
   });
   expect(payload.tests.length).toBeGreaterThan(0);
 });

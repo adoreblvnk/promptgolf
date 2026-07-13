@@ -47,7 +47,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   timers.heartbeat = setInterval(() => send({ type: "heartbeat", at: new Date().toISOString() }), 15000);
   request.signal.addEventListener("abort", close, { once: true });
-  void send({ type: "snapshot", run: { ...run, prompt: undefined, artifactWorkspace: undefined } }).finally(() => {
+  void send({ type: "snapshot", run: { ...run, prompt: undefined, artifactWorkspace: undefined, upstreamPreviewUrl: undefined } }).finally(() => {
     if (run.status === "completed" || run.status === "failed") close();
   });
 

@@ -8,7 +8,7 @@ export default defineConfig({
   fullyParallel: true,
   reporter: "list",
   webServer: {
-    command: `PORT=${webServerPort} PROMPTGOLF_TEST_PROVIDER_STUBS=1 DAYTONA_API_KEY=test-daytona-key MOONSHOT_API_KEY=test-moonshot-key npm run dev`,
+    command: `PORT=${webServerPort} PROMPTGOLF_TEST_PROVIDER_STUBS=1 DAYTONA_API_KEY=test-daytona-key OPENAI_API_KEY=test-openai-key npm run dev`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

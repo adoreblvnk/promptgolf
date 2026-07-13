@@ -1,8 +1,11 @@
-import { redactSecrets } from "./redact-secrets";
+import { generateText } from "ai";
+import { openai, type OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
+import { checkoutEvaluatorSpecs } from "./evaluator-specs";
 import { boundedEnvNumber } from "./env-number";
-import { readBoundedResponseText } from "./provider-response";
+import { OPENAI_DIAGNOSIS_MODEL } from "./model";
+import { redactSecrets } from "./redact-secrets";
 
-export type ProviderMode = "default" | "live" | "unavailable" | "degraded" | "fallback";
+export type ProviderMode = "live" | "unavailable" | "degraded" | "stored" | "stubbed";
 
 export type ProviderStatus = {
   name: string;
@@ -18,16 +21,12 @@ export type ProviderProbe = ProviderStatus & {
   output?: string;
 };
 
-const DAYTONA_BASE_URL = process.env.DAYTONA_API_BASE_URL ?? "https://app.daytona.io/api";
-const MOONSHOT_BASE_URL = process.env.MOONSHOT_BASE_URL ?? "https://api.moonshot.ai/v1";
-const MOONSHOT_MODEL = process.env.MOONSHOT_MODEL ?? "kimi-k2.6";
-const MOONSHOT_TEMPERATURE = 0.6;
 const PROVIDER_TIMEOUT_MS = boundedEnvNumber(process.env.PROMPTGOLF_PROVIDER_TIMEOUT_MS, 12_000, {
   min: 1_000,
   max: 60_000,
   integer: true,
 });
-const PROVIDER_MAX_TOKENS = boundedEnvNumber(process.env.PROMPTGOLF_PROVIDER_MAX_TOKENS, 80, {
+const PROVIDER_MAX_OUTPUT_TOKENS = boundedEnvNumber(process.env.PROMPTGOLF_PROVIDER_MAX_OUTPUT_TOKENS, 80, {
   min: 16,
   max: 1_024,
   integer: true,
@@ -55,171 +54,59 @@ function sanitizeError(error: unknown) {
   return redactSecrets(raw, 240);
 }
 
-function abortAfter(ms: number) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), ms);
-  return { controller, timeout };
-}
-
-function joinUrl(base: string, path: string) {
-  return `${base.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
-}
-
-function extractProviderError(data: unknown) {
-  if (typeof data === "object" && data !== null) {
-    const maybeError = "error" in data ? data.error : undefined;
-    if (typeof maybeError === "object" && maybeError !== null && "message" in maybeError) {
-      return String(maybeError.message);
-    }
-    if ("message" in data) {
-      return String(data.message);
-    }
-  }
-
-  return undefined;
-}
-
-function extractChatText(data: unknown) {
-  if (typeof data !== "object" || data === null || !("choices" in data) || !Array.isArray(data.choices)) {
-    return "";
-  }
-
-  const [firstChoice] = data.choices;
-  if (typeof firstChoice !== "object" || firstChoice === null || !("message" in firstChoice)) {
-    return "";
-  }
-
-  const message = firstChoice.message;
-  if (typeof message !== "object" || message === null || !("content" in message)) {
-    return "";
-  }
-
-  const content = message.content;
-  if (typeof content === "string") {
-    return content;
-  }
-
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => {
-        if (typeof part === "string") return part;
-        if (typeof part === "object" && part !== null && "text" in part) return String(part.text);
-        return "";
-      })
-      .join("\n");
-  }
-
-  return "";
-}
-
-async function generateRawOpenAICompatibleText({
-  apiKey,
-  baseUrl,
-  model,
-  system,
-  prompt,
-  signal,
-  extraBody,
-}: {
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-  system: string;
-  prompt: string;
-  signal: AbortSignal;
-  extraBody?: Record<string, unknown>;
-}) {
-  const response = await fetch(joinUrl(baseUrl, "/chat/completions"), {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: prompt },
-      ],
-      max_tokens: PROVIDER_MAX_TOKENS,
-      temperature: MOONSHOT_TEMPERATURE,
-      stream: false,
-      ...extraBody,
-    }),
-    signal,
-  });
-
-  const rawBody = await readBoundedResponseText(response);
-  let data: unknown;
-  try {
-    data = rawBody ? JSON.parse(rawBody) : undefined;
-  } catch {
-    data = undefined;
-  }
-
-  if (!response.ok) {
-    const message = extractProviderError(data) ?? rawBody.slice(0, 160) ?? response.statusText;
-    throw new Error(`HTTP ${response.status}: ${sanitizeError(message)}`);
-  }
-
-  const text = extractChatText(data).trim();
-  if (!text) {
-    throw new Error("provider returned no message content");
-  }
-
-  return text;
-}
-
-function configuredStatus(name: string, role: string, envName: string, liveDetail: string, unavailableDetail: string, model?: string): ProviderStatus {
-  return hasKey(envName)
-    ? { name, role, mode: "live", model, detail: liveDetail }
-    : { name, role, mode: "unavailable", model, detail: unavailableDetail };
-}
-
 export function getDaytonaAdapterStatus(): ProviderStatus {
-  return configuredStatus(
-    "Sandbox",
-    "sandbox runner",
-    "DAYTONA_API_KEY",
-    "Live sandbox API credentials are configured. PromptGolf probes connectivity before reporting run infrastructure state.",
-    "Sandbox credentials are not configured, so sandbox execution is marked unavailable instead of simulated.",
-  );
+  return hasKey("DAYTONA_API_KEY")
+    ? {
+        name: "Daytona",
+        role: "sandbox runner",
+        mode: "live",
+        detail: "DAYTONA_API_KEY is configured. Live runs create isolated Daytona sandboxes for build, start, health, and preview verification.",
+      }
+    : {
+        name: "Daytona",
+        role: "sandbox runner",
+        mode: "unavailable",
+        detail: "DAYTONA_API_KEY is not configured, so live sandbox execution fails honestly instead of using a local substitute.",
+      };
 }
 
-export function getMoonshotAdapterStatus(): ProviderStatus {
-  return configuredStatus(
-    "Moonshot AI",
-    "live workspace builder + evaluator",
-    "MOONSHOT_API_KEY",
-    "Moonshot credentials are configured for evaluator drafts, prompt feedback, visual evaluation, and diagnosis.",
-    "MOONSHOT_API_KEY is not configured, so live model generation and evaluation are unavailable.",
-    MOONSHOT_MODEL,
-  );
+export function getOpenAIAdapterStatus(): ProviderStatus {
+  return hasKey("OPENAI_API_KEY")
+    ? {
+        name: "OpenAI",
+        role: "builder + visual judge + prompt diagnosis",
+        mode: "live",
+        model: OPENAI_DIAGNOSIS_MODEL,
+        detail: "OPENAI_API_KEY is configured. PromptGolf uses @ai-sdk/openai for live model calls with no alternate provider route.",
+      }
+    : {
+        name: "OpenAI",
+        role: "builder + visual judge + prompt diagnosis",
+        mode: "unavailable",
+        model: OPENAI_DIAGNOSIS_MODEL,
+        detail: "OPENAI_API_KEY is not configured, so live model calls are unavailable and runs fail honestly.",
+      };
+}
+
+export function getStoredEvalSpecStatus(): ProviderStatus {
+  return {
+    name: "Stored EvalSpecs",
+    role: "validated behavior specification",
+    mode: "stored",
+    detail: "Contestant runs use checked-in, validated EvalSpecs. Offline GPT-5.5 review may author or review specs outside the run path.",
+  };
 }
 
 export function getProviderStatuses(): ProviderStatus[] {
-  return [
-    {
-      name: "Codex CLI",
-      role: "builder-agent boundary",
-      mode: "default",
-      model: "gpt-5.5",
-      detail:
-        "Default CLI/process model boundary through ai-sdk-provider-codex-cli. Codex is not used for AI SDK tool calls.",
-    },
-    getDaytonaAdapterStatus(),
-    getMoonshotAdapterStatus(),
-  ];
+  return [getOpenAIAdapterStatus(), getDaytonaAdapterStatus(), getStoredEvalSpecStatus()];
 }
 
 export const providerStatuses = getProviderStatuses();
 
 export async function probeDaytonaStatus(): Promise<ProviderProbe> {
   const base = getDaytonaAdapterStatus();
-  const key = process.env.DAYTONA_API_KEY?.trim();
 
-  if (!key) {
+  if (!hasKey("DAYTONA_API_KEY")) {
     return { ...base, status: "unavailable" };
   }
 
@@ -227,38 +114,26 @@ export async function probeDaytonaStatus(): Promise<ProviderProbe> {
     return {
       ...base,
       status: "connected",
+      mode: "live",
       latencyMs: 1,
-      output: "Stubbed CI probe: sandbox API credential accepted at adapter boundary.",
+      output: "Stubbed CI probe: Daytona SDK boundary accepted at adapter level.",
     };
   }
 
   const start = started();
-  const { controller, timeout } = abortAfter(PROVIDER_TIMEOUT_MS);
-
   try {
-    const response = await fetch(joinUrl(DAYTONA_BASE_URL, "/sandbox/paginated?page=1&limit=1"), {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      return {
-        ...base,
-        mode: "degraded",
-        status: "degraded",
-        latencyMs: elapsedMs(start),
-        detail: `Credentialed sandbox probe returned HTTP ${response.status}; run infrastructure is degraded, not simulated.`,
-      };
-    }
-
+    const { Daytona } = await import("@daytonaio/sdk");
+    const daytona = new Daytona();
+    const iterator = daytona.list({ limit: 1 });
+    await Promise.race([
+      iterator.next(),
+      new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error("Daytona SDK probe timed out")), PROVIDER_TIMEOUT_MS)),
+    ]);
     return {
       ...base,
       status: "connected",
       latencyMs: elapsedMs(start),
-      output: "Credentialed sandbox list probe succeeded; destructive sandbox creation remains disabled until endpoint options are confirmed per run.",
+      output: "Credentialed Daytona SDK list probe succeeded; live runs still create a fresh sandbox per submission.",
     };
   } catch (error) {
     return {
@@ -266,21 +141,18 @@ export async function probeDaytonaStatus(): Promise<ProviderProbe> {
       mode: "degraded",
       status: "degraded",
       latencyMs: elapsedMs(start),
-      detail: `Credentialed sandbox probe failed: ${sanitizeError(error)}. Run infrastructure is degraded, not simulated.`,
+      detail: `Credentialed Daytona SDK probe failed: ${sanitizeError(error)}. Sandbox execution is degraded, not simulated.`,
     };
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
-export async function generateMoonshotPromptFeedback(
+export async function generateOpenAIPromptFeedback(
   prompt: string,
   options: { system?: string; userPrompt?: string } = {},
 ): Promise<ProviderProbe> {
-  const base = getMoonshotAdapterStatus();
-  const apiKey = process.env.MOONSHOT_API_KEY?.trim();
+  const base = getOpenAIAdapterStatus();
 
-  if (!apiKey) {
+  if (!hasKey("OPENAI_API_KEY")) {
     return { ...base, status: "unavailable" };
   }
 
@@ -289,30 +161,35 @@ export async function generateMoonshotPromptFeedback(
       ...base,
       status: "connected",
       latencyMs: 1,
-      output: "Moonshot feedback: this prompt is classified against checkout edge-case coverage.",
+      output: "OpenAI feedback: this prompt is classified against checkout edge-case coverage.",
     };
   }
 
   const start = started();
-  const { controller, timeout } = abortAfter(PROVIDER_TIMEOUT_MS);
-
   try {
-    const text = await generateRawOpenAICompatibleText({
-      apiKey,
-      baseUrl: MOONSHOT_BASE_URL,
-      model: MOONSHOT_MODEL,
-      signal: controller.signal,
+    const result = await generateText({
+      model: openai.responses(OPENAI_DIAGNOSIS_MODEL),
       system:
         options.system ??
         "You are PromptGolf's concise evaluator. Give one sentence of prompt-quality feedback. Do not reveal hidden test answers beyond broad categories.",
       prompt: options.userPrompt ?? `Evaluate this ecommerce checkout challenge prompt in one sentence (max 35 words):\n\n${prompt.slice(0, 1600)}`,
+      maxOutputTokens: PROVIDER_MAX_OUTPUT_TOKENS,
+      maxRetries: 0,
+      timeout: PROVIDER_TIMEOUT_MS,
+      providerOptions: {
+        openai: {
+          reasoningEffort: "low",
+          textVerbosity: "low",
+        } satisfies OpenAIResponsesProviderOptions,
+      },
     });
-
+    const text = result.text.trim();
+    if (!text) throw new Error("OpenAI returned no message content");
     return {
       ...base,
       status: "connected",
       latencyMs: elapsedMs(start),
-      output: text.trim().slice(0, 280),
+      output: text.slice(0, 280),
     };
   } catch (error) {
     return {
@@ -320,47 +197,31 @@ export async function generateMoonshotPromptFeedback(
       mode: "degraded",
       status: "degraded",
       latencyMs: elapsedMs(start),
-      detail: `Moonshot model call failed: ${sanitizeError(error)}. Feedback is reported as degraded.`,
+      detail: `OpenAI AI SDK call failed: ${sanitizeError(error)}. Feedback is reported as degraded.`,
     };
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
 export async function collectRunProviderState(prompt: string): Promise<ProviderProbe[]> {
   return Promise.all([
     probeDaytonaStatus(),
-    generateMoonshotPromptFeedback(prompt),
+    generateOpenAIPromptFeedback(prompt),
+    Promise.resolve({ ...getStoredEvalSpecStatus(), status: "connected" as const }),
   ]);
 }
 
-export async function generateLiveTestDrafts(specs: Array<{ title?: unknown }>) {
-  const source = specs.length
-    ? specs.map((spec, index) => `${index + 1}. ${String(spec.title ?? `Spec ${index + 1}`)}`).join("\n")
-    : "1. Promo codes trim and match case-insensitively\n2. Checkout locks while submitting";
+type StoredDraftSource = { title?: unknown; label?: unknown; intent?: unknown };
 
-  const moonshot = await generateMoonshotPromptFeedback(
-    `Create two concise Playwright test titles for these checkout specs. Return plain lines only.\n${source}`,
-    {
-      system: "You generate concise Playwright test titles for PromptGolf. Return plain lines only; no prose or numbering.",
-      userPrompt: `Create two concise Playwright test titles for these checkout specs. Return plain lines only.\n${source}`,
-    },
-  );
-
-  if (moonshot.status === "connected" && moonshot.output) {
-    return {
-      provider: moonshot,
-      tests: moonshot.output
-        .split(/\n+/)
-        .map((line) => line.replace(/^[-*\d.)\s]+/, "").trim())
-        .filter(Boolean)
-        .slice(0, 4)
-        .map((title, index) => ({ id: `moonshot-generated-${index + 1}`, title, code: "// Drafted through Moonshot from stable natural-language specs; deterministic Playwright materializes and scores checks separately." })),
-    };
-  }
-
+export function getStoredLiveTestDrafts(specs: StoredDraftSource[] = checkoutEvaluatorSpecs) {
+  const tests: StoredDraftSource[] = specs.length ? specs : checkoutEvaluatorSpecs;
   return {
-    provider: moonshot,
-    tests: [],
+    provider: { ...getStoredEvalSpecStatus(), status: "connected" as const },
+    tests: tests.map((spec, index) => ({
+      id: `stored-evalspec-${index + 1}`,
+      title: String(spec.title ?? (spec.label && spec.intent ? `${spec.label}: ${spec.intent}` : spec.label) ?? `Spec ${index + 1}`),
+      code: "// Stored PromptGolf EvalSpec; deterministic Playwright materializes and scores checks during live runs.",
+    })),
   };
 }
+
+export const generateLiveTestDrafts = getStoredLiveTestDrafts;

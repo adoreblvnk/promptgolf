@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateLiveTestDrafts } from "@/lib/promptgolf";
+import { getStoredLiveTestDrafts } from "@/lib/promptgolf";
 import { getModelPolicy } from "@/lib/promptgolf/model";
 import { validateGenerateTestsInput } from "@/lib/promptgolf/generate-tests-input";
 import { readBoundedJson } from "@/lib/promptgolf/request-json";
@@ -21,19 +21,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: input.message }, { status: 400 });
   }
 
-  const draft = await generateLiveTestDrafts(input.data.specs);
-  const ok = draft.provider.status === "connected";
+  const draft = getStoredLiveTestDrafts(input.data.specs);
 
   return NextResponse.json(
     {
-      mode: ok ? "live-provider" : "provider-degraded",
+      mode: "stored-evalspecs",
       policy: getModelPolicy(),
       provider: draft.provider,
-      message: ok
-        ? "Generated evaluator drafts came from Moonshot. Final scoring still comes from deterministic Playwright execution and PromptGolf's scoring algorithm."
-        : "No live test-generation adapter completed successfully. Returning an honest degraded state without pretending provider-generated tests exist.",
+      message: "Returning checked-in validated EvalSpec titles. Contestant runs do not regenerate evaluator specs; deterministic Playwright executes the stored materialization.",
       tests: draft.tests,
     },
-    { status: ok ? 200 : 503 },
+    { status: 200 },
   );
 }

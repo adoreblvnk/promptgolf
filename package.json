@@ -15,7 +15,6 @@
     "@base-ui/react": "^1.5.0",
     "@daytonaio/sdk": "^0.187.0",
     "ai": "^6.0.203",
-    "ai-sdk-provider-codex-cli": "^1.2.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.18.0",
