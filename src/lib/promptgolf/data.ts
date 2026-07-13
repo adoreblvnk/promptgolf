@@ -12,8 +12,14 @@ export type Challenge = {
   artifact: "web" | "api" | "cli" | "pipeline";
   framework: string;
   estimatedMinutes: number;
+  acceptance?: number;
   publicBrief: string;
   thesis: string;
+  workedContract?: {
+    given: string;
+    when: string;
+    then: string;
+  };
   publicRequirements: string[];
   hiddenTeasers: string[];
   guide: string[];
@@ -129,6 +135,11 @@ export const challenges: Challenge[] = [
     estimatedMinutes: 12,
     publicBrief: "Build a full-stack ecommerce checkout web app with cart items, quantities, promo codes, subtotal, shipping, tax, and order confirmation.",
     thesis: "The visible checkout is the easy part. Hidden tests reveal whether your spec encodes cents math, stock rules, async safety, and mobile checkout behavior.",
+    workedContract: {
+      given: "a shopper has cart items",
+      when: "quantities or a promo change",
+      then: "totals update and checkout reaches a clear confirmation state",
+    },
     publicRequirements: [
       "Display cart items with name, price, and quantity.",
       "Allow quantity changes.",

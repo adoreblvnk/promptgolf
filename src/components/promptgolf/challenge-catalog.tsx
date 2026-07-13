@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, ChevronRight, Circle, LockKeyhole, Search, X } from "lucide-react";
+import { ChevronRight, Circle, LockKeyhole, Search, X } from "lucide-react";
 import type { Challenge } from "@/lib/promptgolf/data";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +29,7 @@ export function filterChallenges(challenges: Challenge[], filters: { query: stri
 }
 
 function acceptanceFor(challenge: Challenge) {
-  return challenge.status === "live" ? 41.8 : null;
+  return challenge.acceptance ?? null;
 }
 
 function parFor(challenge: Challenge) {
@@ -158,7 +158,7 @@ function ChallengeRow({ challenge, number }: { challenge: Challenge; number: num
 
       <article className="py-3.5 lg:hidden">
         <div className="flex min-w-0 items-start gap-2.5">
-          <span className="mt-0.5 text-ink-muted">{locked ? <LockKeyhole className="size-3.5" /> : <CheckCircle2 className="size-3.5 text-pass" />}</span>
+          <span className="mt-0.5 text-ink-muted">{locked ? <LockKeyhole className="size-3.5" /> : <Circle className="size-3.5 text-pass" />}</span>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <h2 className={cn("min-w-0 text-[13px] font-medium leading-5", locked ? "text-ink-soft" : "text-ink")}>{String(number).padStart(2, "0")}. {challenge.title}</h2>

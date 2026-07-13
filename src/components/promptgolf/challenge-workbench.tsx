@@ -12,7 +12,7 @@ type MobilePane = "problem" | "solve";
 export function ChallengeWorkbench({ challenge, number, previousHref, nextHref, editor }: { challenge: Challenge; number: number; previousHref?: string; nextHref?: string; editor: ReactNode }) {
   const [leftTab, setLeftTab] = useState<LeftTab>("description");
   const [mobilePane, setMobilePane] = useState<MobilePane>("problem");
-  const acceptance = challenge.status === "live" ? "41.8%" : "—";
+  const acceptance = challenge.acceptance === undefined ? "—" : `${challenge.acceptance.toFixed(1)}%`;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -23,7 +23,7 @@ export function ChallengeWorkbench({ challenge, number, previousHref, nextHref, 
           <span className="hidden font-mono text-[11px] tabular-nums text-ink-muted sm:inline">{String(number).padStart(2, "0")}</span>
           <h1 className="truncate text-[13px] font-medium text-ink">{challenge.title}</h1>
           <span className="hidden rounded bg-warn-soft px-1.5 py-0.5 text-[10px] capitalize text-warn md:inline">{challenge.difficulty}</span>
-          <span className="hidden text-[11px] text-ink-muted lg:inline">{challenge.categoryLabel} · {acceptance} accepted</span>
+          <span className="hidden text-[11px] text-ink-muted lg:inline">{challenge.categoryLabel}{challenge.acceptance === undefined ? "" : ` · ${acceptance} accepted`}</span>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <div className="flex rounded border border-rule p-0.5 lg:hidden" aria-label="Workspace pane">
@@ -49,10 +49,9 @@ export function ChallengeWorkbench({ challenge, number, previousHref, nextHref, 
         </section>
 
         <section className={cn("min-h-0 flex-col bg-[#111317]", mobilePane === "solve" ? "flex h-full" : "hidden lg:flex")} aria-label="Spec editor">
-          <div className="flex min-h-10 shrink-0 items-end gap-1 border-b border-rule bg-card px-2" role="tablist" aria-label="Submission workspace">
-            <button type="button" role="tab" aria-selected="true" className="flex min-h-9 items-center border-b-2 border-accent px-2.5 text-[12px] font-medium text-ink">Spec</button>
-            <button type="button" role="tab" aria-selected="false" disabled className="flex min-h-9 items-center px-2.5 text-[12px] text-ink-muted disabled:cursor-not-allowed disabled:opacity-60">Result</button>
-            <button type="button" role="tab" aria-selected="false" disabled className="flex min-h-9 items-center px-2.5 text-[12px] text-ink-muted disabled:cursor-not-allowed disabled:opacity-60">Console</button>
+          <div className="flex min-h-10 shrink-0 items-center justify-between gap-3 border-b border-rule bg-card px-2">
+            <span className="flex min-h-9 items-center border-b-2 border-accent px-2.5 text-[12px] font-medium text-ink">Spec</span>
+            <span className="pr-2 text-[10px] text-ink-muted">Results open after submission</span>
           </div>
           {editor}
         </section>
@@ -84,11 +83,15 @@ function Description({ challenge, number, acceptance }: { challenge: Challenge; 
         {challenge.publicRequirements.map((requirement, index) => <li key={requirement} className="flex gap-3 text-[13px] leading-5.5 text-ink-soft"><span className="font-mono text-[11px] text-ink-muted">{String(index + 1).padStart(2, "0")}</span><span>{requirement}</span></li>)}
       </ol>
 
-      <ProblemHeading>Worked contract</ProblemHeading>
-      <div className="mt-3 rounded border border-rule bg-black/20 font-mono text-[11px] leading-5 text-ink-soft">
-        <div className="border-b border-rule px-3 py-2 text-ink-muted">Example user flow</div>
-        <div className="p-3"><span className="text-pass">Given</span> a shopper has cart items<br /><span className="text-warn">When</span> quantities or a promo change<br /><span className="text-accent">Then</span> totals update and checkout reaches a clear confirmation state</div>
-      </div>
+      {challenge.workedContract && (
+        <>
+          <ProblemHeading>Worked contract</ProblemHeading>
+          <div className="mt-3 rounded border border-rule bg-black/20 font-mono text-[11px] leading-5 text-ink-soft">
+            <div className="border-b border-rule px-3 py-2 text-ink-muted">Example user flow</div>
+            <div className="p-3"><span className="text-pass">Given</span> {challenge.workedContract.given}<br /><span className="text-warn">When</span> {challenge.workedContract.when}<br /><span className="text-accent">Then</span> {challenge.workedContract.then}</div>
+          </div>
+        </>
+      )}
 
       <ProblemHeading>Constraints</ProblemHeading>
       <ul className="mt-3 space-y-2 text-[13px] leading-5 text-ink-soft">
