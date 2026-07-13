@@ -11,23 +11,24 @@ import { appendLiveRunEvent, createLiveRun, deleteLiveRun, getLiveRun, sanitizeL
 import { captureVisualEvidence, evaluateSpecsWithPlaywright } from "./playwright-evaluator";
 import { RunScheduler } from "./run-scheduler";
 import { MAX_PROVIDER_RESPONSE_BYTES, readBoundedResponseText } from "./provider-response";
+import { boundedEnvNumber } from "./env-number";
 
 const AGNES_AI_BASE_URL = process.env.AGNES_AI_BASE_URL ?? "https://apihub.agnes-ai.com/v1";
 const AGNES_AI_MODEL = process.env.AGNES_AI_MODEL ?? "agnes-2.0-flash";
-const GENERATION_TIMEOUT_MS = Number(process.env.PROMPTGOLF_LIVE_GENERATION_TIMEOUT_MS ?? 240000);
-const GENERATION_MAX_TOKENS = Number(process.env.PROMPTGOLF_LIVE_GENERATION_MAX_TOKENS ?? 4200);
-const EVALUATION_TIMEOUT_MS = Number(process.env.PROMPTGOLF_LIVE_EVALUATION_TIMEOUT_MS ?? 45000);
-const EVALUATION_MAX_TOKENS = Number(process.env.PROMPTGOLF_LIVE_EVALUATION_MAX_TOKENS ?? 900);
-const DAYTONA_CREATE_TIMEOUT_SECONDS = Number(process.env.PROMPTGOLF_DAYTONA_CREATE_TIMEOUT_SECONDS ?? 30);
-const DAYTONA_STEP_TIMEOUT_MS = Number(process.env.PROMPTGOLF_DAYTONA_STEP_TIMEOUT_MS ?? 30000);
+const GENERATION_TIMEOUT_MS = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_GENERATION_TIMEOUT_MS, 240_000, { min: 10_000, max: 600_000, integer: true });
+const GENERATION_MAX_TOKENS = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_GENERATION_MAX_TOKENS, 4_200, { min: 256, max: 32_768, integer: true });
+const EVALUATION_TIMEOUT_MS = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_EVALUATION_TIMEOUT_MS, 45_000, { min: 5_000, max: 180_000, integer: true });
+const EVALUATION_MAX_TOKENS = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_EVALUATION_MAX_TOKENS, 900, { min: 128, max: 8_192, integer: true });
+const DAYTONA_CREATE_TIMEOUT_SECONDS = boundedEnvNumber(process.env.PROMPTGOLF_DAYTONA_CREATE_TIMEOUT_SECONDS, 30, { min: 5, max: 120, integer: true });
+const DAYTONA_STEP_TIMEOUT_MS = boundedEnvNumber(process.env.PROMPTGOLF_DAYTONA_STEP_TIMEOUT_MS, 30_000, { min: 5_000, max: 300_000, integer: true });
 const ALLOW_LOCAL_SANDBOX_FALLBACK = process.env.PROMPTGOLF_ALLOW_LOCAL_SANDBOX_FALLBACK === "1";
 const PREVIEW_PROBE_TIMEOUT_MS = 5_000;
 const MAX_PREVIEW_PROBE_BYTES = 512 * 1024;
-const configuredConcurrency = Number(process.env.PROMPTGOLF_LIVE_RUN_CONCURRENCY ?? 2);
-const configuredQueueCapacity = Number(process.env.PROMPTGOLF_LIVE_RUN_QUEUE_CAPACITY ?? 20);
+const configuredConcurrency = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_RUN_CONCURRENCY, 2, { min: 1, max: 8, integer: true });
+const configuredQueueCapacity = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_RUN_QUEUE_CAPACITY, 20, { min: 0, max: 100, integer: true });
 const liveRunScheduler = new RunScheduler(
-  Number.isInteger(configuredConcurrency) && configuredConcurrency > 0 ? configuredConcurrency : 2,
-  Number.isInteger(configuredQueueCapacity) && configuredQueueCapacity >= 0 ? configuredQueueCapacity : 20,
+  configuredConcurrency,
+  configuredQueueCapacity,
 );
 
 const CATEGORY_LABELS: Record<LiveRunTestCategory, string> = {
