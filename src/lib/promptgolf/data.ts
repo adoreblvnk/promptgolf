@@ -1,5 +1,5 @@
 import { scoreRun, type ScoreBreakdown, type TestResult } from "./scoring";
-import { collectRunProviderState, getDaytonaAdapterStatus, getMoonshotAdapterStatus, type ProviderProbe } from "./adapters";
+import { collectRunProviderState, getDaytonaAdapterStatus, getOpenAIAdapterStatus, type ProviderProbe } from "./adapters";
 
 export type Challenge = {
   slug: string;
@@ -61,8 +61,8 @@ export type PromptSubmissionResult = {
   promptLength: number;
   providerState: ProviderProbe[];
   providerPolicy: {
-    provider: "Codex CLI";
-    model: "gpt-5.5";
+    provider: "OpenAI AI SDK v6";
+    model: "gpt-5.4-mini";
     note: string;
   };
 };
@@ -99,7 +99,7 @@ function makeStages(): RunStage[] {
   const daytona = getDaytonaAdapterStatus();
 
   return [
-    { label: "Resolve model", status: "complete", detail: "Codex CLI provider selected: gpt-5.5 through AI SDK adapter." },
+    { label: "Resolve model", status: "complete", detail: "OpenAI AI SDK v6 selected: gpt-5.4-mini for live builder, visual judge, and prompt diagnosis." },
     {
       label: "Provision sandbox",
       status: daytona.mode === "live" ? "running" : "queued",
@@ -108,9 +108,9 @@ function makeStages(): RunStage[] {
           ? "Live sandbox adapter is configured; run creation probes the sandbox API and reports connected or degraded state."
           : "Live sandbox adapter is unavailable because sandbox credentials are not configured.",
     },
-    { label: "Generate app", status: "complete", detail: "Agent applied the submitted spec to a Next.js checkout implementation." },
-    { label: "Install + build", status: "complete", detail: "npm install cache restored, TypeScript build completed." },
-    { label: "Playwright evaluation", status: "complete", detail: "Public and hidden checkout tests executed with product seed cart data." },
+    { label: "Generate app", status: "complete", detail: "OpenAI builder used bounded Daytona tools to write, inspect, repair, and finalize the project." },
+    { label: "Install + build", status: "complete", detail: "Approved install/build/typecheck/test commands run inside Daytona only." },
+    { label: "Playwright evaluation", status: "complete", detail: "Stored EvalSpecs materialized into deterministic Playwright behavior checks." },
     { label: "Scorecard", status: "complete", detail: "Scoring rewards public tests, hidden tests, UX/style, and prompt efficiency." },
   ];
 }
@@ -489,14 +489,14 @@ const seededRunsBase = [
 
 export const runs: Run[] = seededRunsBase.map((run) => {
   const tests = makeTests(run.hiddenPassed);
-  const moonshot = getMoonshotAdapterStatus();
+  const openai = getOpenAIAdapterStatus();
   const daytona = getDaytonaAdapterStatus();
   return {
     ...run,
     challengeSlug: "mini-checkout-promo-engine",
-    provider: "Codex CLI",
-    model: "gpt-5.5",
-    gateway: moonshot.mode === "live" ? `Moonshot live model · ${moonshot.model}` : "Moonshot unavailable · set MOONSHOT_API_KEY",
+    provider: "OpenAI AI SDK v6",
+    model: "gpt-5.4-mini",
+    gateway: openai.mode === "live" ? `OpenAI live model · ${openai.model}` : "OpenAI unavailable · set OPENAI_API_KEY",
     sandbox: daytona.mode === "live" ? "Live sandbox adapter configured" : "Sandbox unavailable · configure credentials",
     stages: makeStages(),
     tests,
@@ -554,9 +554,9 @@ export async function resolvePromptSubmission({ prompt, challengeSlug = "mini-ch
     promptLength: prompt.trim().length,
     providerState,
     providerPolicy: {
-      provider: "Codex CLI",
-      model: "gpt-5.5",
-      note: "PromptGolf keeps Codex as the CLI builder-agent boundary. Provider-backed feedback, routing, and sandbox status are reported separately through live adapters when credentials are configured.",
+      provider: "OpenAI AI SDK v6",
+      model: "gpt-5.4-mini",
+      note: "PromptGolf uses @ai-sdk/openai for live builder, visual judging, and post-score diagnosis. Daytona handles isolated execution; stored EvalSpecs drive deterministic Playwright grading with no fallback provider.",
     },
   };
 }

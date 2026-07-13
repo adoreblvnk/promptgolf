@@ -51,6 +51,7 @@ export type LiveRun = {
   providerMode: string;
   sandboxMode: string;
   previewUrl?: string;
+  upstreamPreviewUrl?: string;
   previewLabel?: string;
   artifactWorkspace?: WorkspaceManifest;
   tests: LiveRunTestResult[];

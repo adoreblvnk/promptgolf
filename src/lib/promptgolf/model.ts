@@ -1,30 +1,19 @@
-import type { CodexModelId } from "ai-sdk-provider-codex-cli";
-
-export const codexModelId: CodexModelId = "gpt-5.5";
-
-export async function createDefaultCodexModel() {
-  // Provider policy: Codex CLI via ai-sdk-provider-codex-cli is the default
-  // model boundary because the user's ChatGPT/Codex subscription is the
-  // intended unlimited path. Codex currently has no AI SDK tool-call support,
-  // so any flow that needs tools must use a separate fallback adapter instead
-  // of pretending Codex can call tools.
-  const { codexCli } = await import("ai-sdk-provider-codex-cli");
-  return codexCli(codexModelId, {
-    reasoningEffort: "medium",
-    sandboxMode: "read-only",
-    approvalMode: "never",
-  });
-}
+export const OPENAI_BUILDER_MODEL = "gpt-5.4-mini";
+export const OPENAI_VISUAL_JUDGE_MODEL = "gpt-5.4-mini";
+export const OPENAI_DIAGNOSIS_MODEL = "gpt-5.4-mini";
+export const OPENAI_OFFLINE_EVALSPEC_MODEL = "gpt-5.5";
 
 export function getModelPolicy() {
   return {
-    defaultProvider: "Codex CLI",
-    defaultModel: codexModelId,
-    package: "ai-sdk-provider-codex-cli",
-    unlimitedThrough: "ChatGPT/Codex subscription",
-    separateFrom: "OpenAI provider credits",
-    toolCalls: false,
-    fallback: "Moonshot handles live model calls; no OpenAI, Google, Agnes, or TokenRouter provider is used",
-    liveAdapters: ["DAYTONA_API_KEY", "MOONSHOT_API_KEY"],
+    liveProvider: "OpenAI AI SDK v6",
+    builderModel: OPENAI_BUILDER_MODEL,
+    visualJudgeModel: OPENAI_VISUAL_JUDGE_MODEL,
+    diagnosisModel: OPENAI_DIAGNOSIS_MODEL,
+    offlineEvalSpecModel: OPENAI_OFFLINE_EVALSPEC_MODEL,
+    package: "@ai-sdk/openai",
+    requiredEnv: ["OPENAI_API_KEY", "DAYTONA_API_KEY"],
+    behaviorGrading: "Playwright deterministic checks",
+    fallback: false,
+    note: "Live runs use OpenAI through the AI SDK and Daytona sandboxes only. Stored EvalSpecs are not regenerated during contestant runs, and failed artifacts are recorded honestly.",
   };
 }

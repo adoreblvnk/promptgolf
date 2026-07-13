@@ -5,7 +5,7 @@ import { Check, LoaderCircle, X } from "lucide-react";
 import type { LiveRun, LiveRunEvent, LiveRunTestResult } from "@/lib/promptgolf/live-run-store";
 import { cn } from "@/lib/utils";
 
-type SafeRun = Omit<LiveRun, "prompt" | "artifactWorkspace">;
+type SafeRun = Omit<LiveRun, "prompt" | "artifactWorkspace" | "upstreamPreviewUrl">;
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -299,7 +299,7 @@ export function LiveRunView({ id }: { id: string }) {
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded border border-rule bg-paper px-2.5 py-1 font-mono text-xs text-ink-soft">{run.status}</span>
             <span className="rounded border border-rule bg-paper px-2.5 py-1 font-mono text-xs text-ink-soft">stage: {run.stage}</span>
-            <span className={cn("rounded border px-2.5 py-1 font-mono text-xs", connected ? "border-pass/30 bg-pass-soft text-pass" : "border-warn/35 bg-warn-soft text-warn")}>{connected ? "SSE connected" : "polling fallback"}</span>
+            <span className={cn("rounded border px-2.5 py-1 font-mono text-xs", connected ? "border-pass/30 bg-pass-soft text-pass" : "border-warn/35 bg-warn-soft text-warn")}>{connected ? "SSE connected" : "polling active"}</span>
           </div>
         </div>
         <div className="grid items-start gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -324,7 +324,7 @@ export function LiveRunView({ id }: { id: string }) {
               {previewSrc ? (
                 <iframe ref={iframeRef} title="Generated checkout preview" src={previewSrc} sandbox="allow-scripts allow-same-origin" className="w-full bg-white" style={{ height: previewHeight }} onLoad={() => setPreviewHeight(measuredFrameHeight(iframeRef.current))} />
               ) : (
-                <div className="flex items-center justify-center border-t border-dashed border-rule bg-paper text-sm text-ink-muted" style={{ height: DEFAULT_PREVIEW_HEIGHT }}>Preview appears after Moonshot returns a workspace and the sandbox route is ready.</div>
+                <div className="flex items-center justify-center border-t border-dashed border-rule bg-paper text-sm text-ink-muted" style={{ height: DEFAULT_PREVIEW_HEIGHT }}>Preview appears after the OpenAI builder finalizes and Daytona health checks pass.</div>
               )}
             </div>
           </div>
@@ -333,13 +333,13 @@ export function LiveRunView({ id }: { id: string }) {
             <div className="rounded-lg border border-rule bg-paper p-3">
               <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-muted">Results</div>
               <div className="mt-1.5 font-mono text-4xl font-semibold tabular-nums tracking-[-0.04em] text-ink" data-testid="live-score">{scoreText}</div>
-              <p className="mt-1.5 text-xs leading-5 text-ink-soft">Functional checks, hidden ecommerce edge cases, and Moonshot screenshot UI/UX scoring.</p>
+              <p className="mt-1.5 text-xs leading-5 text-ink-soft">Stored EvalSpecs become Playwright behavior checks; OpenAI judges screenshots for UI/UX after preview readiness.</p>
               {categoryScores.length ? (
                 <div className="mt-3 grid grid-cols-3 gap-2">
                   {categoryScores.map((category) => <CategoryScore key={category.category} label={category.label} value={`${category.passed}/${category.total}`} score={category.score} />)}
                 </div>
               ) : (
-                <div className="mt-4 rounded-md border border-dashed border-rule p-3 font-mono text-xs text-ink-muted">Category scores appear after Playwright and Moonshot finish.</div>
+                <div className="mt-4 rounded-md border border-dashed border-rule p-3 font-mono text-xs text-ink-muted">Category scores appear after Playwright and the OpenAI visual judge finish.</div>
               )}
             </div>
 
