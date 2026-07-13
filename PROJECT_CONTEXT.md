@@ -1,8 +1,8 @@
 # PromptGolf Project Context
 
-Last updated: 2026-07-13, for the production positive-evidence and workspace architecture.
+Last updated: 2026-07-13, for the OpenAI + Daytona production evaluation architecture.
 
-This document is the source of truth for building PromptGolf. Current event link: Agnes AI Hackathon @ SMU, https://luma.com/s9s8bjla.
+This document is the source of truth for building PromptGolf.
 
 ## Product Positioning
 
@@ -38,13 +38,13 @@ The current product slice is a real local flow with provider-backed boundaries.
 
 - The app uses the Next.js App Router under `src/app`, reusable UI under `src/components`, and PromptGolf domain code under `src/lib/promptgolf`.
 - The challenge page submits prompts through a server action that starts a live run and redirects to `/live-runs/[id]`.
-- The live builder returns a validated, framework-native multi-file workspace with build/start/runtime metadata. Daytona uploads every file, runs the declared build/start commands, and exposes the application when credentials are present.
+- The live builder is an OpenAI AI SDK v6 tool loop over Daytona: write files, run approved install/build/typecheck/test commands, inspect diagnostics, repair, start the app, verify health, and verify preview.
 - Evaluation is positive capability evidence only. The pillars are behavior testing (examples, state-machine traces, fuzz/properties), spec completeness (requirement trees), and artifact adapters (semantic framework discovery into a canonical protocol).
 - Evaluator policy rejects negative testing, mutation testing, implementation/signature/CSS fingerprints, and preferred-method enforcement. Contestant artifacts are graded by observable outcomes.
-- Live mode fails honestly when required provider steps are unavailable. Local artifact fallback is only allowed in CI stub mode or when `PROMPTGOLF_ALLOW_LOCAL_SANDBOX_FALLBACK=1` is explicitly set.
+- Live mode fails honestly when required provider steps are unavailable. Local artifact substitution is allowed only in explicit CI stub mode.
 - `POST /api/runs` remains available for deterministic naive/structured/expert seeded reference runs.
 - Seeded run pages, the leaderboard, scorecards, provider posture, generated-checkout preview surfaces, and API routes should remain functional under `npm run build`.
-- Provider integrations use live adapters where keys are present and report unavailable/degraded state when services cannot be reached.
+- Provider integrations use OpenAI and Daytona adapters where keys are present and report unavailable/degraded state when services cannot be reached.
 
 Do not print or commit real secrets. `.env` contains provider keys.
 
@@ -59,7 +59,7 @@ User-facing routes:
 - `/` - landing page.
 - `/challenges` - challenge catalog.
 - `/challenges/[slug]` - challenge detail, public brief, prompt guide, and prompt submission.
-- `/live-runs/[id]` - live generated checkout run with SSE timeline, same-origin preview proxy, Playwright results, and Moonshot diagnosis.
+- `/live-runs/[id]` - live generated checkout run with SSE timeline, same-origin preview proxy, Playwright results, OpenAI visual judgment, and post-score OpenAI diagnosis.
 - `/runs/[id]` - seeded/reference scorecard run page.
 - `/leaderboard` - seeded leaderboard.
 
@@ -68,11 +68,11 @@ API routes:
 - `/api/challenges` - challenge listing/data.
 - `/api/runs` - deterministic seeded-run classification for naive/structured/expert prompts.
 - `/api/score` - score computation endpoint.
-- `/api/generate-tests` - Moonshot evaluator draft endpoint.
+- `/api/generate-tests` - compatibility endpoint that reports stored validated EvalSpec titles; contestant runs do not regenerate tests.
 - `/api/live-runs` - create a live provider-backed run.
 - `/api/live-runs/[id]` - poll live run state without exposing prompt or generated HTML.
 - `/api/live-runs/[id]/events` - stream live run timeline events over SSE.
-- `/api/live-runs/[id]/artifact` - serve the generated HTML artifact for CI or explicit local fallback.
+- `/api/live-runs/[id]/artifact` - serve the deterministic generated HTML artifact only for CI stub mode.
 - `/api/live-runs/[id]/preview` - same-origin proxy for Daytona/local preview URLs with allowed-host checks.
 
 ## Primary Demo Challenge
@@ -167,47 +167,44 @@ Use copy like: “A one-shot prompt is not a paragraph. It is a compact engineer
 
 ## Provider Policy
 
-Default builder-agent boundary:
+Live model paths:
 
-- Use the AI SDK Codex CLI community provider for default builder-agent generation flows.
-- Default Codex model: `gpt-5.5` unless a Codex-specific model is clearly better.
-- Strict Codex model IDs: `gpt-5.5`, `gpt-5.3-codex`, `gpt-5.2-codex`, `gpt-5.2-codex-max`, `gpt-5.2-codex-mini`, `gpt-5.1`, `gpt-5.2`.
-- Codex does not support AI SDK tool calls. Do not design Codex flows that require `generateText` or `streamText` tool calls.
-
-Tool-calling and live model paths:
-
-- Use Moonshot AI for every live model call.
-- Do not use Agnes AI, TokenRouter, OpenAI, or Google for live generation or evaluation.
+- Use only `@ai-sdk/openai` with `OPENAI_API_KEY` for live model calls.
+- Builder model: `gpt-5.4-mini`, reasoning `medium`, verbosity `low`.
+- Visual judge model: `gpt-5.4-mini`, reasoning `low`.
+- Prompt diagnosis model: `gpt-5.4-mini`, reasoning `low`.
+- Offline EvalSpec authoring/review only: `gpt-5.5`.
+- Behavior grading uses Playwright only, no model.
+- Do not use Moonshot, Agnes, TokenRouter, Google, Codex, handwritten OpenAI HTTP calls, model routing, or live fallback providers.
 
 Configured provider details:
 
-- Daytona sandbox SDK/API: used behind the sandbox adapter for live preview infrastructure.
-- Moonshot API base URL: `https://api.moonshot.ai/v1`.
-- Moonshot builder model: `kimi-k2.7-code-highspeed` unless overridden by `MOONSHOT_BUILDER_MODEL`.
-- Moonshot evaluation model: `kimi-k2.6` unless overridden by `MOONSHOT_EVALUATION_MODEL`.
+- Daytona SDK is used behind the sandbox adapter for live workspace execution and preview infrastructure.
 - Daytona uses `DAYTONA_API_KEY` independently as sandbox infrastructure.
+- Stored validated EvalSpecs are checked in and reused during contestant runs.
 
 ## Live Run Pipeline
 
 Current live execution steps:
 
 1. Create an in-memory live run.
-2. Ask the builder agent for a framework requested by the contestant (Next.js by default) and validate its workspace manifest, files, and commands.
-3. Adapt semantic routes, controls, outputs, and commands to canonical capabilities without source fingerprints.
-4. Create a Daytona sandbox when credentials are present.
-5. Upload the workspace, run its install/build/start lifecycle, probe its health route, and expose a signed preview URL.
-6. Use the local artifact route only in CI stub mode or explicit local fallback mode.
-7. Route evaluator draft generation through Moonshot before deterministic scoring.
-8. Materialize natural-language evaluator specs into Playwright checks.
-9. Capture desktop/mobile screenshots and ask Moonshot AI for UI/UX judgment.
-10. Ask Moonshot AI for prompt/technical diagnosis.
+2. Create a Daytona sandbox and expose only bounded workspace tools to the OpenAI builder.
+3. Run the builder loop: write → build → inspect → fix → start → verify.
+4. Require successful production build, `PORT` support, HTTP 200 health route, and runnable preview before finalization.
+5. Adapt executable declarations to canonical capabilities without source fingerprints.
+6. Store the signed Daytona preview target server-side and expose only the same-origin preview proxy to clients.
+7. Use stored validated EvalSpecs; do not regenerate evaluator specs during contestant runs.
+8. After preview readiness, run Playwright behavior checks and OpenAI visual judging concurrently.
+9. Compute scores deterministically from behavior and visual verdicts.
+10. Run OpenAI prompt diagnosis after scoring; diagnosis never alters the score.
 11. Stream timeline events over SSE and store safe run state for polling.
 
 Failure policy:
 
-- Missing `MOONSHOT_API_KEY` fails live generation.
-- Moonshot evaluator draft unavailability fails the current live demo path.
-- Sandbox failures fail the live run unless `PROMPTGOLF_TEST_PROVIDER_STUBS=1` or `PROMPTGOLF_ALLOW_LOCAL_SANDBOX_FALLBACK=1` is set.
+- Missing `OPENAI_API_KEY` fails live generation.
+- Missing `DAYTONA_API_KEY` fails live sandbox execution.
+- Builder step-limit exhaustion, build failure, start failure, health failure, and preview failure are recorded honestly.
+- Sandbox failures fail the live run unless `PROMPTGOLF_TEST_PROVIDER_STUBS=1` is set for CI.
 - Provider failures should be shown as unavailable/degraded, not simulated success.
 
 ## Sandbox Presentation
@@ -215,27 +212,27 @@ Failure policy:
 In the UI, show sandboxing as core infrastructure:
 
 - “Sandbox created.”
-- “Generated artifact uploaded.”
+- “OpenAI builder wrote workspace files.”
 - “Preview server started.”
 - “Playwright evaluator attached.”
 - “Sandbox auto-stop/archive/delete policy set.”
 
 If sandbox creation fails or is disabled, label the run disabled/degraded rather than successful.
 
-## Moonshot Presentation
+## OpenAI Presentation
 
-Use Moonshot for:
+Use OpenAI for:
 
-- Hidden natural-language spec to evaluator draft generation.
-- Model-routed prompt feedback.
-- Optional score explanations.
+- Daytona tool-calling builder loop.
+- Screenshot visual judging after preview readiness.
+- Post-score prompt diagnosis.
 - Model and usage display on run pages.
 
 UI copy examples:
 
-- “Tests generated via Moonshot-routed model call.”
-- “Prompt feedback routed through Moonshot.”
-- “Models: Moonshot AI · kimi-k2.7-code-highspeed builder + kimi-k2.6 evaluator.”
+- “Builder: OpenAI gpt-5.4-mini · Daytona tool loop.”
+- “Behavior: stored EvalSpecs materialized by Playwright.”
+- “Diagnosis: OpenAI gpt-5.4-mini after score lock.”
 
 ## Scoring
 
@@ -352,7 +349,6 @@ Current `package.json` highlights:
 - `@tailwindcss/postcss`: ^4.
 - shadcn package: ^4.11.0.
 - AI SDK package `ai`: ^6.0.203.
-- `ai-sdk-provider-codex-cli`: ^1.2.2.
 - `@ai-sdk/openai`: ^3.0.71.
 - Daytona SDK `@daytonaio/sdk`: ^0.187.0.
 - Playwright: ^1.60.0.
@@ -392,7 +388,7 @@ For the current demo, implement only what is needed for the live flow, but never
 5. Show the PromptGolf spec guide.
 6. Submit or show an expert prompt score: hidden tests pass because the spec includes ecommerce edge cases.
 7. Show the leaderboard.
-8. Point to infrastructure: Moonshot generates and evaluates, Daytona sandboxes, and Playwright executes the positive behavior checks.
+8. Point to infrastructure: OpenAI drives the Daytona coding loop and visual diagnosis, Daytona sandboxes, and Playwright executes the positive behavior checks.
 9. Close: “In the AI-agent era, the scarce skill is not typing code. It is writing specs that survive reality.”
 
 ## Product Success Criteria
@@ -405,7 +401,7 @@ The product is successful if:
 - The prompt/spec guide makes the educational wedge obvious.
 - The demo shows naive vs structured/expert prompts producing different hidden-test scores.
 - The scorecard is visually polished.
-- Daytona and Moonshot are represented through credible adapter-backed flows.
+- Daytona, OpenAI, stored EvalSpecs, and Playwright are represented through credible adapter-backed flows.
 - The product looks like a full working product, not a notebook or toy dashboard.
 
 Final narrative: PromptGolf is not about memorizing prompt tricks. It is about learning how to specify software to AI agents like a real engineer: with context, constraints, edge cases, validation, and domain knowledge.
