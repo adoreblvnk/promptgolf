@@ -35,7 +35,7 @@ Voice words: **forensic, competitive, unsentimental**. The page should feel like
 
 ### Copy hierarchy
 
-- Primary line: **Same agent. Same task. Different human.**
+- Primary line: **Same agent. Same task. Different specification.**
 - Thesis support: **AI made building abundant. Reliable judgment is still scarce.**
 - Product explanation: PromptGolf holds the machine constant and changes the specification; hidden tests reveal whether the built product survives reality.
 - Transformation labels: **Naive request / Structured spec / Domain-expert spec**.
@@ -105,7 +105,7 @@ Scores are 1–5, where 5 is strongest. Weights reflect the run acceptance crite
 | Performance | 8 | **5** | **5** | 4 |
 | Maintainability | 7 | **5** | **5** | 3 |
 | Fit with established PromptGolf brand | 5 | 4 | **5** | 2 |
-| **Weighted total / 500** | 100 | **384** | **490** | **375** |
+| **Weighted total / 500** | 100 | **385** | **485** | **378** |
 
 ## Selected direction
 
@@ -125,6 +125,7 @@ Why it wins:
 - Keep the entire current product architecture and routes intact; replace only the landing narrative/components needed for this direction.
 - Use real `naive-checkout`, `structured-checkout`, and `expert-checkout` seeded data. Never invent aggregate acceptance rates, user counts, or endorsements.
 - Build one semantic three-state comparator, not three identical cards. Use tabs or a radio-like segmented control with correct keyboard behavior and readable focus.
+- In every state, show a short real prompt/spec excerpt plus equivalent generated-checkout evidence. The visible app should remain comparably plausible while hidden survival and diagnosis change; do not ask the score alone to prove that transformation.
 - Keep the constant rail visible: same checkout challenge, same builder, same evaluator. Provider wording must match project policy.
 - Include concrete named checks such as integer cents, promo normalization, shipping-threshold order, stock limits, and double-submit prevention.
 - Default content must render without animation. Motion may enhance state transitions but must never gate visibility.
@@ -140,7 +141,7 @@ The three studies were rendered from `direction-studies.html` in headless Chrome
 - `direction-a-cut-line.png` — 1440×1000; complete composition, no clipping observed.
 - `direction-b-human-spec-gap.png` — 1440×1200; complete instrument and conclusion visible.
 - `direction-c-specification-relay.png` — 1440×1000; complete composition, no clipping observed.
-- `direction-b-mobile.png` — true 390×1800 viewport captured through Chrome DevTools Protocol. Runtime metrics reported `innerWidth: 390`, `scrollWidth: 390`, so the selected study has no horizontal overflow. A first mobile capture exposed clipping caused by Chrome's command-line minimum viewport; CDP emulation and mobile min-width fixes produced the verified artifact.
+- `direction-b-mobile.png` — true 390×2100 viewport captured through Chrome DevTools Protocol. Runtime metrics reported `innerWidth: 390`, `scrollWidth: 390`, so the selected study has no horizontal overflow. A first mobile capture exposed clipping caused by Chrome's command-line minimum viewport; CDP emulation and mobile min-width fixes produced the verified artifact.
 
 The studies are static evidence artifacts, not claims that production interactions are implemented. Production keyboard, focus, reduced-motion, contrast, and responsive behavior remain M3/M4 gates.
 
