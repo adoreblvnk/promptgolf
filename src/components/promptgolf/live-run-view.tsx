@@ -295,12 +295,12 @@ export function LiveRunView({ id }: { id: string }) {
   const categoryScores = run?.score?.categories ?? [];
 
   if (!run) {
-    return <div className="rounded-lg border border-rule bg-card p-6 text-ink-soft">Connecting to live run…</div>;
+    return <div className="rounded border border-rule bg-card p-5 text-sm text-ink-soft">Connecting to live run…</div>;
   }
 
   return (
     <div className="space-y-5">
-      <section className="rounded-lg border border-rule bg-card shadow-[0_1px_3px_oklch(0.23_0.022_268/0.06)]">
+      <section className="rounded-md border border-rule bg-card">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule px-5 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded border border-rule bg-paper px-2.5 py-1 font-mono text-xs text-ink-soft">{run.status}</span>
@@ -317,7 +317,7 @@ export function LiveRunView({ id }: { id: string }) {
               </div>
               {run.previewUrl && <a className="hidden min-h-10 items-center rounded-md bg-ink px-4 text-sm font-medium text-paper transition-colors hover:bg-ink/90 sm:inline-flex" href={run.previewUrl} target="_blank" rel="noreferrer">Open app</a>}
             </div>
-            <div className="overflow-hidden rounded-lg border border-rule bg-paper">
+            <div className="overflow-hidden rounded border border-rule bg-paper">
               <div className="flex items-center gap-3 border-b border-rule bg-paper px-4 py-2.5">
                 <div className="flex gap-1.5" aria-hidden="true">
                   <i className="size-2.5 rounded-full bg-accent/70" />
@@ -336,7 +336,7 @@ export function LiveRunView({ id }: { id: string }) {
           </div>
 
           <aside className="flex min-w-0 flex-col gap-3 p-3 sm:p-4 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:overscroll-contain">
-            <div className="rounded-lg border border-rule bg-paper p-3">
+            <div className="rounded border border-rule bg-paper p-3">
               <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-muted">Results</div>
               <div className="mt-1.5 font-mono text-4xl font-semibold tabular-nums tracking-[-0.04em] text-ink" data-testid="live-score">{scoreText}</div>
               <p className="mt-1.5 text-xs leading-5 text-ink-soft">Stored EvalSpecs become Playwright behavior checks; OpenAI judges screenshots for UI/UX after preview readiness.</p>
@@ -357,7 +357,7 @@ export function LiveRunView({ id }: { id: string }) {
               </dl>
             </div>
 
-            <div className="flex h-[360px] min-h-0 flex-col overflow-hidden rounded-lg border border-rule bg-paper p-3 lg:h-[34dvh] lg:min-h-[300px]">
+            <div className="flex h-[360px] min-h-0 flex-col overflow-hidden rounded border border-rule bg-paper p-3 lg:h-[34dvh] lg:min-h-[300px]">
               <div className="flex items-center justify-between border-b border-rule pb-2.5">
                 <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-muted">Evaluator checks</div>
                 {!complete && <LoaderCircle className="size-3.5 animate-spin text-accent" />}
@@ -404,10 +404,10 @@ export function LiveRunView({ id }: { id: string }) {
       </section>
 
       {run.diagnosis ? (
-        <section className="rounded-lg border border-rule bg-card p-5 shadow-[0_1px_2px_oklch(0.23_0.022_268/0.05)]">
+        <section className="rounded-md border border-rule bg-card p-5">
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-rule pb-3">
             <div>
-              <h2 className="text-lg font-semibold tracking-[-0.02em] text-ink">Prompt analysis</h2>
+              <h2 className="text-lg font-semibold tracking-[-0.02em] text-ink">Post-score diagnosis</h2>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">Structured analysis of prompt quality versus product-engineering knowledge.</p>
             </div>
             <span className="rounded border border-rule bg-paper px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-ink-soft">{run.diagnosis.verdict}</span>
@@ -423,7 +423,7 @@ export function LiveRunView({ id }: { id: string }) {
         </section>
       ) : null}
 
-      <section className="rounded-lg border border-rule bg-card p-5 shadow-[0_1px_2px_oklch(0.23_0.022_268/0.05)]">
+      <section className="rounded-md border border-rule bg-card p-5">
         <div className="flex items-center justify-between gap-3 border-b border-rule pb-3">
           <h2 className="text-lg font-semibold text-ink">Streaming execution log</h2>
           <span className="font-mono text-xs text-ink-muted">{visibleEvents.length} events</span>
@@ -464,7 +464,7 @@ function CategoryScore({ label, value, score }: { label: string; value: string; 
 function SkillScoreCard({ label, score, feedback, tone }: { label: string; score: number; feedback: string; tone: "prompt" | "technical" }) {
   const safeScore = Math.max(0, Math.min(10, Math.round(score)));
   return (
-    <div className="rounded-lg border border-rule bg-paper p-5">
+    <div className="rounded border border-rule bg-paper p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">{label}</div>
         <div className="font-mono text-3xl font-semibold tabular-nums tracking-[-0.04em] text-ink">{safeScore}<span className="text-base text-ink-muted">/10</span></div>
