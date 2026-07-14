@@ -10,17 +10,18 @@ This guide moves PromptGolf from Vercel to a production-safe Google Cloud archit
 Browser
   │
   ▼
-Cloud Run: promptgolf-web (public)
+Cloud Run: promptgolf (public full-stack Next.js service)
   ├── Next.js pages and public API
   ├── creates Firestore run document
   ├── enqueues Cloud Task
-  └── reads run state and proxies approved previews
+  ├── reads run state and proxies approved previews
+  └── handles the authenticated task endpoint
               │
               ▼
 Cloud Tasks: promptgolf-live-runs
-              │ authenticated OIDC request
-              ▼
-Cloud Run: promptgolf-worker (private, concurrency 1)
+              │ authenticated OIDC request back to the same service
+              └───────────────────────────────────────────────┐
+                                                              ▼
   ├── OpenAI builder orchestration
   ├── Daytona sandbox lifecycle
   ├── Playwright evaluation with container Chromium
@@ -53,10 +54,10 @@ The migration must therefore replace:
 | --- | --- |
 | In-memory `LiveRun` map | Firestore repository |
 | Process-local FIFO scheduler | Cloud Tasks |
-| Fire-and-forget evaluation | Authenticated private worker request |
+| Fire-and-forget evaluation | Authenticated Cloud Task request to the same service |
 | Local event subscribers | Polling or Firestore-backed SSE |
 | Large workspace/screenshots in memory | Cloud Storage references |
-| Local Playwright browser cache | Chromium installed in the worker image |
+| Local Playwright browser cache | Chromium installed in the application image |
 | `.env` production secrets | Secret Manager |
 
 Do not switch DNS until these replacements pass staging verification.
@@ -72,25 +73,28 @@ You need:
 - Docker or Cloud Build access.
 - The PromptGolf repository checked out locally.
 
-Authenticate and select the project:
+Create the project in the Google Cloud Console first, link it to the intended billing account, then authenticate and select it locally:
 
 ```bash
 gcloud auth login
 gcloud auth application-default login
 
 export PROJECT_ID="your-gcp-project-id"
+gcloud config set project "$PROJECT_ID"
+gcloud auth application-default set-quota-project "$PROJECT_ID"
+
 export PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
 export REGION="asia-southeast1"
 export REPOSITORY="promptgolf"
 export IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/promptgolf"
-export WEB_SERVICE="promptgolf-web"
-export WORKER_SERVICE="promptgolf-worker"
+export SERVICE="promptgolf"
 export QUEUE="promptgolf-live-runs"
-export BUCKET="${PROJECT_ID}-promptgolf-artifacts"
+export BUCKET="${PROJECT_ID}-artifacts"
 
-gcloud config set project "$PROJECT_ID"
 gcloud config set run/region "$REGION"
 ```
+
+The quota-project command keeps local Google client libraries aligned with the selected project. An `environment` tag warning does not block deployment; for managed organizations, tag this project as `Development`, `Staging`, or `Production` according to its purpose.
 
 Verify that billing is enabled before provisioning anything:
 
@@ -127,42 +131,34 @@ gcloud services list --enabled \
 
 ## 3. Create service accounts
 
-Use separate identities so the public web service cannot read provider secrets or execute worker-only operations.
+Use one runtime identity for the full-stack application and a separate identity only for Cloud Tasks OIDC tokens. This intentionally keeps the first deployment simple; split the task handler into a private worker service later only if scaling, isolation, or least-privilege requirements justify it.
 
 ```bash
-gcloud iam service-accounts create promptgolf-web \
-  --display-name="PromptGolf web service"
-
-gcloud iam service-accounts create promptgolf-worker \
-  --display-name="PromptGolf evaluation worker"
+gcloud iam service-accounts create promptgolf-app \
+  --display-name="PromptGolf application"
 
 gcloud iam service-accounts create promptgolf-task-invoker \
   --display-name="PromptGolf Cloud Tasks invoker"
 
-export WEB_SA="promptgolf-web@${PROJECT_ID}.iam.gserviceaccount.com"
-export WORKER_SA="promptgolf-worker@${PROJECT_ID}.iam.gserviceaccount.com"
+export APP_SA="promptgolf-app@${PROJECT_ID}.iam.gserviceaccount.com"
 export TASK_INVOKER_SA="promptgolf-task-invoker@${PROJECT_ID}.iam.gserviceaccount.com"
 ```
 
-Grant both runtime identities Firestore access. Firestore's predefined data roles are granted at project scope, so use a dedicated PromptGolf GCP project rather than sharing this project with unrelated workloads:
+Grant the runtime identity Firestore access. Firestore's predefined data roles are granted at project scope, so use a dedicated PromptGolf GCP project rather than sharing this project with unrelated workloads:
 
 ```bash
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:${WEB_SA}" \
-  --role="roles/datastore.user"
-
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:${WORKER_SA}" \
+  --member="serviceAccount:${APP_SA}" \
   --role="roles/datastore.user"
 ```
 
 Storage, Secret Manager, and Cloud Tasks grants are applied to their individual resources in the sections that create those resources. Do not grant their runtime roles project-wide.
 
-Allow the web service to attach the task invoker identity to Cloud Tasks requests:
+Allow the application to attach the task invoker identity to Cloud Tasks requests:
 
 ```bash
 gcloud iam service-accounts add-iam-policy-binding "$TASK_INVOKER_SA" \
-  --member="serviceAccount:${WEB_SA}" \
+  --member="serviceAccount:${APP_SA}" \
   --role="roles/iam.serviceAccountUser"
 ```
 
@@ -242,11 +238,7 @@ gcloud storage buckets create "gs://${BUCKET}" \
   --uniform-bucket-level-access
 
 gcloud storage buckets add-iam-policy-binding "gs://${BUCKET}" \
-  --member="serviceAccount:${WEB_SA}" \
-  --role="roles/storage.objectViewer"
-
-gcloud storage buckets add-iam-policy-binding "gs://${BUCKET}" \
-  --member="serviceAccount:${WORKER_SA}" \
+  --member="serviceAccount:${APP_SA}" \
   --role="roles/storage.objectAdmin"
 ```
 
@@ -272,11 +264,11 @@ gcloud secrets create openai-api-key --replication-policy=automatic
 gcloud secrets create daytona-api-key --replication-policy=automatic
 
 gcloud secrets add-iam-policy-binding openai-api-key \
-  --member="serviceAccount:${WORKER_SA}" \
+  --member="serviceAccount:${APP_SA}" \
   --role="roles/secretmanager.secretAccessor"
 
 gcloud secrets add-iam-policy-binding daytona-api-key \
-  --member="serviceAccount:${WORKER_SA}" \
+  --member="serviceAccount:${APP_SA}" \
   --role="roles/secretmanager.secretAccessor"
 ```
 
@@ -317,12 +309,12 @@ gcloud tasks queues create "$QUEUE" \
 
 gcloud tasks queues add-iam-policy-binding "$QUEUE" \
   --location="$REGION" \
-  --member="serviceAccount:${WEB_SA}" \
+  --member="serviceAccount:${APP_SA}" \
   --role="roles/cloudtasks.enqueuer"
 
 gcloud tasks queues add-iam-policy-binding "$QUEUE" \
   --location="$REGION" \
-  --member="serviceAccount:${WEB_SA}" \
+  --member="serviceAccount:${APP_SA}" \
   --role="roles/cloudtasks.viewer"
 ```
 
@@ -335,13 +327,13 @@ gcloud tasks queues describe "$QUEUE" --location="$REGION"
 Each task should:
 
 - Use a deterministic task name derived from the run ID, preventing accidental duplicate enqueueing.
-- Send only `{ "runId": "..." }`; the worker reads the prompt from Firestore.
-- Target the worker's `run.app` URL plus `/internal/tasks/live-runs`.
+- Send only `{ "runId": "..." }`; the task handler reads the prompt from Firestore.
+- Target the service's `run.app` URL plus `/internal/tasks/live-runs`.
 - Use an OIDC token from `promptgolf-task-invoker`.
-- Set the audience to the worker's base `run.app` URL.
+- Set the audience to the service's base `run.app` URL.
 - Set a dispatch deadline of 1,740 seconds.
 
-Cloud Tasks HTTP handlers have a maximum 30-minute dispatch deadline. Give the application a 1,620-second execution budget, the task a 1,740-second dispatch deadline, and Cloud Run a 1,800-second timeout. The margins let the worker persist failure state and clean up before infrastructure terminates or retries it.
+Cloud Tasks HTTP handlers have a maximum 30-minute dispatch deadline. Give the application a 1,620-second execution budget, the task a 1,740-second dispatch deadline, and Cloud Run a 1,800-second timeout. The margins let the task handler persist failure state and clean up before infrastructure terminates or retries it.
 
 ## 8. Refactor the application
 
@@ -356,7 +348,7 @@ create(input)
 get(id)
 update(id, patch)
 appendEvent(id, event)
-claim(id, workerId, leaseDuration)
+claim(id, executorId, leaseDuration)
 complete(id, result)
 fail(id, publicError)
 ```
@@ -380,7 +372,7 @@ Firestore updates that append events or claim work must use transactions. Keep e
 
 Task creation is not safely classified by the first client error: a timeout can occur after Cloud Tasks accepted the deterministic task name. Retry `CreateTask` with the same name; treat `ALREADY_EXISTS` as success, and use `GetTask` when the result remains ambiguous. Do not mark the run failed while an accepted task may still execute. Persist `enqueueState=unknown` and alert for reconciliation if neither success nor absence can be proven.
 
-The web route must not eagerly import `live-runner.ts`, Playwright, or the Daytona SDK. Keep provider and browser imports behind the private worker boundary so a public API cold start cannot fail while loading worker-only packages.
+The web route must not eagerly import `live-runner.ts`, Playwright, or the Daytona SDK. Load provider and browser modules only inside the authenticated task handler so ordinary page and API requests do not initialize heavyweight execution dependencies.
 
 #### Distributed submission protection
 
@@ -388,7 +380,7 @@ The existing process-local limiter is suitable only for local development; it re
 
 1. Replace it with a Firestore transaction-backed quota keyed by a one-way hash of the normalized client identity and time window. Store no raw IP address, set a short `expiresAt`, and reject before creating the run or task.
 2. Put a Cloud Armor policy on the load-balancer backend with a conservative per-IP throttle for `POST /api/live-runs`. Start the rule in preview, inspect legitimate traffic, then enforce it before production cutover.
-3. Keep queue dispatch concurrency and worker maximum instances low, and provide an operator kill switch that pauses the queue.
+3. Keep queue dispatch concurrency and service maximum instances low, and provide an operator kill switch that pauses the queue.
 4. Add a project budget alert, provider-side spend limits where available, and alerts for submission rejection rate and queued-run growth.
 
 A shared application quota plus edge throttling is a production blocker because every accepted anonymous submission can incur OpenAI and Daytona spend. Cloud Armor alone is not an identity or global-budget control.
@@ -396,7 +388,7 @@ A shared application quota plus edge throttling is a production blocker because 
 Use these production packages:
 
 ```bash
-npm install @google-cloud/firestore @google-cloud/storage @google-cloud/tasks
+npm install @google-cloud/firestore @google-cloud/storage @google-cloud/tasks google-auth-library
 ```
 
 The publisher shape should be equivalent to:
@@ -409,12 +401,12 @@ const [task] = await tasksClient.createTask({
     dispatchDeadline: { seconds: 1740 },
     httpRequest: {
       httpMethod: "POST",
-      url: `${workerUrl}/internal/tasks/live-runs`,
+      url: `${serviceUrl}/internal/tasks/live-runs`,
       headers: { "Content-Type": "application/json" },
       body: Buffer.from(JSON.stringify({ runId })).toString("base64"),
       oidcToken: {
         serviceAccountEmail: taskInvokerServiceAccount,
-        audience: workerUrl,
+        audience: serviceUrl,
       },
     },
   },
@@ -423,16 +415,16 @@ const [task] = await tasksClient.createTask({
 
 Do not place the contestant prompt, provider keys, or signed preview URL in the Cloud Task payload.
 
-### 8.3 Add an idempotent worker route
+### 8.3 Add an authenticated, idempotent task route
 
-The private worker handler should:
+The task handler in the public service should:
 
 1. Accept only `POST /internal/tasks/live-runs`.
-2. Rely on Cloud Run IAM authentication; do not expose the worker publicly.
+2. Require a Google-signed OIDC bearer token, verify its audience equals `PROMPTGOLF_SERVICE_URL`, and require its email claim to equal `PROMPTGOLF_TASK_INVOKER_SERVICE_ACCOUNT`. Reject missing or invalid tokens before reading the body.
 3. Validate `runId` and load the run from Firestore.
 4. Claim the run with a Firestore transaction that increments and returns `leaseGeneration`.
 5. Return success immediately if the run is already completed.
-6. Return retryable `503` without starting work when another worker owns an unexpired lease; do not acknowledge an unfinished run with `2xx`.
+6. Return retryable `503` without starting work when another task attempt owns an unexpired lease; do not acknowledge an unfinished run with `2xx`.
 7. Execute the existing OpenAI → Daytona → Playwright pipeline.
 8. Renew the lease with a heartbeat and persist every stage and bounded event to Firestore.
 9. Upload large artifacts to Cloud Storage.
@@ -440,7 +432,7 @@ The private worker handler should:
 
 Cloud Tasks is at-least-once delivery. Correctness must come from the Firestore claim/lease transaction, not from assuming each task runs once.
 
-Use a 90-second lease renewed every 30 seconds. Every heartbeat, stage update, terminal write, and artifact pointer update must transactionally require both the claimed `leaseOwner` and `leaseGeneration`. If renewal fails, the stale worker must abort provider/browser work and must not write completion. The fencing token prevents a delayed original worker from overwriting a retry that acquired a newer lease. Make provider operations idempotent where their APIs support an idempotency key derived from the run ID.
+Use a 90-second lease renewed every 30 seconds. Every heartbeat, stage update, terminal write, and artifact pointer update must transactionally require both the claimed `leaseOwner` and `leaseGeneration`. If renewal fails, the stale task attempt must abort provider/browser work and must not write completion. The fencing token prevents a delayed original task attempt from overwriting a retry that acquired a newer lease. Make provider operations idempotent where their APIs support an idempotency key derived from the run ID.
 
 The application's 1,620-second budget must include a final cleanup window. Abort provider calls and browser work before that budget expires, persist a retryable failure while the lease is still owned, and let Cloud Tasks decide whether another attempt remains.
 
@@ -474,9 +466,9 @@ Store the signed Daytona preview target in Firestore as a server-only field. `/a
 
 Signed Daytona previews and their sandboxes are temporary. Define the UI contract explicitly: the interactive preview is best-effort during and shortly after a run; the scorecard, screenshots, evaluation JSON, and supported replay/static artifact remain available for the seven-day run-retention period. Display an “Interactive preview expired” fallback rather than a generic failure after the signed target expires.
 
-Before the sandbox's auto-stop/archive/delete policy takes effect, the worker must upload screenshots, evaluation JSON, and any supported replay/static artifact to Cloud Storage. It writes only bounded object metadata—object name, content type, compressed size, and checksum—to Firestore.
+Before the sandbox's auto-stop/archive/delete policy takes effect, the task handler must upload screenshots, evaluation JSON, and any supported replay/static artifact to Cloud Storage. It writes only bounded object metadata—object name, content type, compressed size, and checksum—to Firestore.
 
-Refactor `/api/live-runs/[id]/artifact` to load the object through the web service account, enforce the existing run/object prefix and response-size limits, and stream or decode the supported artifact format. It must no longer read `artifactWorkspace` from process memory. Completed scorecards must remain useful after the live preview expires; do not treat the signed Daytona URL as durable storage.
+Refactor `/api/live-runs/[id]/artifact` to load the object through the application service account, enforce the existing run/object prefix and response-size limits, and stream or decode the supported artifact format. It must no longer read `artifactWorkspace` from process memory. Completed scorecards must remain useful after the live preview expires; do not treat the signed Daytona URL as durable storage.
 
 ### 8.6 Make runtime mode explicit
 
@@ -487,19 +479,16 @@ PROMPTGOLF_RUNTIME=gcp
 GOOGLE_CLOUD_PROJECT
 PROMPTGOLF_GCP_REGION=asia-southeast1
 PROMPTGOLF_TASK_QUEUE=promptgolf-live-runs
-PROMPTGOLF_WORKER_URL
+PROMPTGOLF_SERVICE_URL
 PROMPTGOLF_TASK_INVOKER_SERVICE_ACCOUNT
 PROMPTGOLF_ARTIFACT_BUCKET
 PROMPTGOLF_RUN_BUDGET_SECONDS=1620
 PROMPTGOLF_SUBMISSIONS_ENABLED=0 | 1
-SERVICE_ROLE=web | worker
-OPENAI_API_KEY                 worker only, from Secret Manager
-DAYTONA_API_KEY                worker only, from Secret Manager
+OPENAI_API_KEY                 from Secret Manager
+DAYTONA_API_KEY                from Secret Manager
 ```
 
-The web service must return `404` for worker-only routes. The worker service should not be used as the public site.
-
-Do not inject OpenAI or Daytona keys into the web service merely to keep the provider-status UI green. Change that UI/API to derive availability from non-secret deployment metadata and recent worker health; per-run provider probes remain part of the durable run document.
+The task route is reachable on the same hostname as the public site, so application-level OIDC verification is mandatory. Cloud Run IAM cannot make only one route private. Keep provider imports scoped to that handler, never expose secret-derived status, and derive the public provider-status UI from non-secret deployment metadata and recent task health.
 
 ### 8.7 Expected repository changes
 
@@ -511,24 +500,24 @@ src/lib/promptgolf/live-run-repository-memory.ts      tests and explicit stub mo
 src/lib/promptgolf/live-run-repository-firestore.ts   production state
 src/lib/promptgolf/cloud-tasks.ts                     enqueue one run ID
 src/lib/promptgolf/gcp-artifacts.ts                    private object storage
-src/lib/promptgolf/live-runner.ts                      worker-executed pipeline with injected repository
+src/lib/promptgolf/live-runner.ts                      task-executed pipeline with injected repository
 src/app/api/live-runs/route.ts                         validate, persist, enqueue
 src/app/api/live-runs/[id]/route.ts                    safe Firestore projection
 src/app/api/live-runs/[id]/events/route.ts             remove or make Firestore-backed
 src/app/api/live-runs/[id]/artifact/route.ts           stream durable Cloud Storage artifact
 src/app/api/live-runs/[id]/preview/route.ts            Firestore-backed target lookup
-src/app/internal/tasks/live-runs/route.ts              private idempotent worker handler
+src/app/internal/tasks/live-runs/route.ts              OIDC-authenticated idempotent task handler
 src/components/promptgolf/live-run-view.tsx            durable polling behavior
 Dockerfile
 .dockerignore
 cloudbuild.yaml
 ```
 
-Add unit tests for repository transactions, task deduplication, lease ownership, retry classification, safe projections, and worker-route role guards. Keep provider stubs at the OpenAI/Daytona boundary rather than replacing Firestore or Cloud Tasks semantics in integration tests.
+Add unit tests for repository transactions, task deduplication, lease ownership, retry classification, safe projections, and task-route OIDC guards. Keep provider stubs at the OpenAI/Daytona boundary rather than replacing Firestore or Cloud Tasks semantics in integration tests.
 
 ## 9. Containerize PromptGolf
 
-Use one pinned image for both Cloud Run services initially. `SERVICE_ROLE` determines which internal operations are available. This avoids web/worker version drift during the first migration.
+Build one pinned image and deploy it as one full-stack Cloud Run service. Next.js serves the frontend, public backend routes, and the authenticated Cloud Tasks handler from the same container.
 
 Add `output: "standalone"` to `next.config.ts`, move the Playwright runtime package into production dependencies, and pin the Playwright image and npm package to the same version.
 
@@ -560,7 +549,7 @@ CMD ["node", "server.js"]
 Important:
 
 - Keep the Playwright package version aligned with the base image version.
-- Run the worker's browser smoke test inside the built image.
+- Run the task pipeline browser smoke test inside the built image.
 - Do not copy `.env`, credentials, local `.next`, or test evidence into the image.
 - Add a `.dockerignore` covering `.git`, `.env*`, `.next`, `node_modules`, `test-results`, and local evidence not required at runtime.
 - Pin production base images by digest once the first verified deployment works.
@@ -596,7 +585,7 @@ gcloud builds submit --tag "${IMAGE}:${IMAGE_TAG}" .
 
 Do not deploy `latest`. Deploy the immutable commit tag or image digest.
 
-## 11. Deploy the private worker
+## 11. Deploy the full-stack service
 
 Pin enabled Secret Manager version numbers. The commands in §6 create version `1`; change these values after an intentional rotation:
 
@@ -605,101 +594,71 @@ export OPENAI_SECRET_VERSION="1"
 export DAYTONA_SECRET_VERSION="1"
 ```
 
-```bash
-gcloud run deploy "$WORKER_SERVICE" \
-  --image="${IMAGE}:${IMAGE_TAG}" \
-  --region="$REGION" \
-  --platform=managed \
-  --no-allow-unauthenticated \
-  --service-account="$WORKER_SA" \
-  --cpu=2 \
-  --memory=4Gi \
-  --concurrency=1 \
-  --min-instances=0 \
-  --max-instances=3 \
-  --timeout=1800 \
-  --set-env-vars="SERVICE_ROLE=worker,PROMPTGOLF_RUNTIME=gcp,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},PROMPTGOLF_GCP_REGION=${REGION},PROMPTGOLF_ARTIFACT_BUCKET=${BUCKET},PROMPTGOLF_RUN_BUDGET_SECONDS=1620" \
-  --set-secrets="OPENAI_API_KEY=openai-api-key:${OPENAI_SECRET_VERSION},DAYTONA_API_KEY=daytona-api-key:${DAYTONA_SECRET_VERSION}"
-```
-
-Capture the canonical worker URL:
+Deploy one public Next.js service with submissions initially disabled:
 
 ```bash
-export WORKER_URL="$(gcloud run services describe "$WORKER_SERVICE" \
-  --region="$REGION" \
-  --format='value(status.url)')"
-
-printf '%s\n' "$WORKER_URL"
-```
-
-Allow only the task invoker service account to call it:
-
-```bash
-gcloud run services add-iam-policy-binding "$WORKER_SERVICE" \
-  --region="$REGION" \
-  --member="serviceAccount:${TASK_INVOKER_SA}" \
-  --role="roles/run.invoker"
-```
-
-Do not use `--allow-unauthenticated` on the worker.
-
-## 12. Deploy the public web service
-
-```bash
-gcloud run deploy "$WEB_SERVICE" \
+gcloud run deploy "$SERVICE" \
   --image="${IMAGE}:${IMAGE_TAG}" \
   --region="$REGION" \
   --platform=managed \
   --allow-unauthenticated \
-  --service-account="$WEB_SA" \
-  --cpu=1 \
-  --memory=1Gi \
-  --concurrency=40 \
+  --service-account="$APP_SA" \
+  --cpu=2 \
+  --memory=4Gi \
+  --concurrency=10 \
   --min-instances=0 \
-  --max-instances=10 \
-  --timeout=300 \
-  --set-env-vars="SERVICE_ROLE=web,PROMPTGOLF_RUNTIME=gcp,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},PROMPTGOLF_GCP_REGION=${REGION},PROMPTGOLF_TASK_QUEUE=${QUEUE},PROMPTGOLF_WORKER_URL=${WORKER_URL},PROMPTGOLF_TASK_INVOKER_SERVICE_ACCOUNT=${TASK_INVOKER_SA},PROMPTGOLF_ARTIFACT_BUCKET=${BUCKET},PROMPTGOLF_SUBMISSIONS_ENABLED=0"
+  --max-instances=3 \
+  --timeout=1800 \
+  --set-env-vars="PROMPTGOLF_RUNTIME=gcp,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},PROMPTGOLF_GCP_REGION=${REGION},PROMPTGOLF_TASK_QUEUE=${QUEUE},PROMPTGOLF_TASK_INVOKER_SERVICE_ACCOUNT=${TASK_INVOKER_SA},PROMPTGOLF_ARTIFACT_BUCKET=${BUCKET},PROMPTGOLF_RUN_BUDGET_SECONDS=1620,PROMPTGOLF_SUBMISSIONS_ENABLED=0" \
+  --set-secrets="OPENAI_API_KEY=openai-api-key:${OPENAI_SECRET_VERSION},DAYTONA_API_KEY=daytona-api-key:${DAYTONA_SECRET_VERSION}"
 ```
 
-The first production web revision intentionally disables live submissions. Keep it disabled until the load balancer, Cloud Armor policy, distributed quota, logs, and rollback path are verified. Disabled submissions must return a structured `503` before creating Firestore state or Cloud Tasks.
-
-Capture its temporary URL:
+Capture the canonical service URL, then add it to the runtime configuration. Cloud Tasks uses this exact URL both as its target base and OIDC audience:
 
 ```bash
-export WEB_URL="$(gcloud run services describe "$WEB_SERVICE" \
+export SERVICE_URL="$(gcloud run services describe "$SERVICE" \
   --region="$REGION" \
   --format='value(status.url)')"
 
-printf '%s\n' "$WEB_URL"
+printf '%s\n' "$SERVICE_URL"
+
+gcloud run services update "$SERVICE" \
+  --region="$REGION" \
+  --update-env-vars="PROMPTGOLF_SERVICE_URL=${SERVICE_URL}"
 ```
 
-## 13. Verify staging before DNS
+The first production revision intentionally disables live submissions. Keep them disabled until the load balancer, Cloud Armor policy, distributed quota, logs, and rollback path are verified. Disabled submissions must return a structured `503` before creating Firestore state or Cloud Tasks.
+
+Because the service is public, Cloud Run IAM cannot protect only the task route. The application must verify the task's Google-signed OIDC token, exact audience, and task-invoker service-account email before accepting a run.
+
+## 12. Verify staging before DNS
 
 ### Infrastructure checks
 
 ```bash
-gcloud run services describe "$WEB_SERVICE" --region="$REGION"
-gcloud run services describe "$WORKER_SERVICE" --region="$REGION"
+gcloud run services describe "$SERVICE" --region="$REGION"
 gcloud tasks queues describe "$QUEUE" --location="$REGION"
 gcloud firestore databases describe --database='(default)'
 gcloud storage buckets describe "gs://${BUCKET}"
 ```
 
-Verify that anonymous access to the worker is rejected:
+Verify that an unauthenticated task request is rejected by the application:
 
 ```bash
-curl -i "${WORKER_URL}/internal/tasks/live-runs"
+curl -i -X POST "${SERVICE_URL}/internal/tasks/live-runs" \
+  -H 'Content-Type: application/json' \
+  --data '{"runId":"probe"}'
 ```
 
-Expected result: `401` or `403`, not application output.
+Expected result: `401` or `403`, with no task execution.
 
 ### Public endpoint checks
 
 ```bash
-curl -fsS "${WEB_URL}/challenges/mini-checkout-promo-engine" >/dev/null
+curl -fsS "${SERVICE_URL}/challenges/mini-checkout-promo-engine" >/dev/null
 
-curl -i -X POST "${WEB_URL}/api/live-runs" \
-  -H "Origin: ${WEB_URL}" \
+curl -i -X POST "${SERVICE_URL}/api/live-runs" \
+  -H "Origin: ${SERVICE_URL}" \
   -H 'Sec-Fetch-Site: same-origin' \
   -H 'Content-Type: application/json' \
   --data '{"prompt":"short","challengeSlug":"mini-checkout-promo-engine"}'
@@ -709,59 +668,55 @@ Expected result for the second request: structured JSON `400`, proving the route
 
 ### Stubbed end-to-end run
 
-Use a separate GCP staging project with its own Firestore database, queue, bucket, web service, worker service, and service accounts. Deploy the staging worker with `PROMPTGOLF_TEST_PROVIDER_STUBS=1` and without mounting real provider secrets. Never use a revision of the production worker for stub testing: a revision can receive production traffic unless traffic and task targeting are isolated perfectly.
+Use a separate GCP staging project with its own Firestore database, queue, bucket, application service, and service accounts. Deploy staging with `PROMPTGOLF_TEST_PROVIDER_STUBS=1` and without mounting real provider secrets. Never use a production revision for stub testing because a revision can receive production traffic unless traffic and task targeting are isolated perfectly.
 
-Repeat the provisioning sections with a staging project ID, then point the staging web service only at the staging queue and worker URL. The staging task invoker must have no permission to invoke the production worker, and the production web service must have no permission to enqueue into the staging queue.
+Repeat the provisioning sections with a staging project ID. Point the staging application only at its own queue and service URL. Its runtime and task-invoker identities must have no access to production resources.
 
 Verify:
 
 1. Submission returns `202` and a run ID.
 2. A Firestore document appears as `queued`.
-3. Cloud Tasks dispatches one authenticated task.
-4. The worker claims the run and progresses through stages.
-5. The live page survives web/worker restarts because state is durable.
+3. Cloud Tasks dispatches one authenticated task to the same service.
+4. The task handler claims the run and progresses through stages.
+5. The live page survives service restarts because state is durable.
 6. Polling returns safe run state without the prompt or signed preview target.
 7. The generated preview proxy and results render.
 8. A repeated task delivery does not execute the run twice.
 9. Failed runs store a bounded, redacted error.
-10. The worker writes artifacts to the expected bucket prefix.
+10. The task handler writes artifacts to the expected bucket prefix.
 
-Do not run a real provider submission at this stage. The first approved real run occurs only after production traffic is behind the load balancer, shared quota and Cloud Armor are enforced, and the submission kill switch is deliberately enabled in §14.
+Do not run a real provider submission at this stage. The first approved real run occurs only after production traffic is behind the load balancer, shared quota and Cloud Armor are enforced, and the submission kill switch is deliberately enabled in §13.
 
 ### Logs
 
 ```bash
-gcloud run services logs read "$WEB_SERVICE" \
-  --region="$REGION" \
-  --limit=100
-
-gcloud run services logs read "$WORKER_SERVICE" \
+gcloud run services logs read "$SERVICE" \
   --region="$REGION" \
   --limit=200
 ```
 
 Search for secrets, raw authorization headers, signed preview URLs, and unbounded provider bodies before cutover. None should appear.
 
-## 14. Configure the custom domain
+## 13. Configure the custom domain
 
 Google recommends a global external Application Load Balancer for Cloud Run custom domains. It provides managed TLS, a stable global IP, optional Cloud CDN, and room for security policies. Use it for the final production setup.
 
 In **Network Services → Load balancing**, create a public global Application Load Balancer with:
 
 1. A global Premium-tier static IPv4 address.
-2. A serverless network endpoint group in `asia-southeast1` targeting `promptgolf-web`.
+2. A serverless network endpoint group in `asia-southeast1` targeting `promptgolf`.
 3. A global backend service using that serverless NEG.
 4. A URL map whose default backend is the PromptGolf backend service.
 5. A Google-managed certificate covering `www.promptgolf.dev` and, if served directly, `promptgolf.dev`.
 6. An HTTPS frontend on port 443 and an HTTP-to-HTTPS redirect on port 80.
 7. Backend logging enabled and an enforced Cloud Armor throttle for `POST /api/live-runs`, tested in preview first.
 
-Record the reserved load-balancer IP. Keep the worker on its generated `run.app` URL with IAM authentication because Cloud Tasks uses that URL as its OIDC audience.
+Record the reserved load-balancer IP. Cloud Tasks continues targeting the service's generated `run.app` URL and uses that same URL as its OIDC audience. With `internal-and-cloud-load-balancing` ingress, same-project Cloud Tasks traffic can still reach the service while public users must use the load balancer.
 
 Production cutover sequence:
 
 1. Lower the existing DNS TTL to 300 seconds at least several hours beforehand.
-2. Verify the web and worker `run.app` URLs, Firestore persistence, task authentication, shared quota, and artifact retrieval.
+2. Verify the service `run.app` URL, Firestore persistence, task authentication, shared quota, and artifact retrieval.
 3. Confirm the load balancer, serverless NEG, certificate resource, HTTPS frontend, redirect, logging, and Cloud Armor policy are configured.
 4. Point `www.promptgolf.dev` to the reserved load-balancer IP and keep the apex redirecting to `www`.
 5. Wait for the Google-managed certificate to become active.
@@ -769,15 +724,15 @@ Production cutover sequence:
 7. After load-balanced traffic and enforced controls are healthy, enable submissions and prevent bypass through the public web `run.app` URL:
 
 ```bash
-gcloud run services update "$WEB_SERVICE" \
+gcloud run services update "$SERVICE" \
   --region="$REGION" \
   --update-env-vars="PROMPTGOLF_SUBMISSIONS_ENABLED=1" \
   --ingress=internal-and-cloud-load-balancing
 ```
 
-Immediately submit one explicitly approved low-cost real run through `https://www.promptgolf.dev`, confirm Firestore/task/worker/artifact behavior, and pause the queue or disable submissions if any stage fails.
+Immediately submit one explicitly approved low-cost real run through `https://www.promptgolf.dev`, confirm Firestore/task-handler/artifact behavior, and pause the queue or disable submissions if any stage fails.
 
-8. Keep the Vercel deployment and previous DNS values available for at least 24–48 hours as rollback capacity. Do not delete the Vercel project immediately after DNS changes.
+After the smoke run, keep the Vercel deployment and previous DNS values available for at least 24–48 hours as rollback capacity. Do not delete the Vercel project immediately after DNS changes.
 
 ### Optional staging-only shortcut
 
@@ -785,7 +740,7 @@ Cloud Run domain mapping is available in `asia-southeast1`, but Google documents
 
 ```bash
 gcloud beta run domain-mappings create \
-  --service="$WEB_SERVICE" \
+  --service="$SERVICE" \
   --domain="staging.promptgolf.dev" \
   --region="$REGION"
 
@@ -796,7 +751,7 @@ gcloud beta run domain-mappings describe \
 
 Do not use this Preview mapping as the production `www.promptgolf.dev` cutover path.
 
-## 15. CI/CD after the first manual deployment
+## 14. CI/CD after the first manual deployment
 
 Make the first deployment manually so every identity and resource is observable. Then connect GitHub to Cloud Build and add a trigger for `main`.
 
@@ -808,19 +763,18 @@ The pipeline should:
 4. Build one pinned container image.
 5. Run a Chromium smoke test inside that image.
 6. Push the commit-tagged image to Artifact Registry.
-7. Deploy the worker first.
-8. Run the authenticated worker health check.
-9. Deploy the web service with the same image digest.
-10. Run deployed JSON endpoint smoke tests.
-11. Shift traffic only after checks pass.
+7. Deploy the full-stack service.
+8. Verify that unauthenticated task requests are rejected.
+9. Run deployed JSON endpoint smoke tests.
+10. Shift traffic only after checks pass.
 
 Use Cloud Build's service account or Workload Identity Federation. Do not add a downloadable GCP service-account key to GitHub Secrets.
 
-## 16. Monitoring and operational controls
+## 15. Monitoring and operational controls
 
 Create alerts for:
 
-- Worker `5xx` responses.
+- Task-handler `5xx` responses.
 - Cloud Tasks oldest-task age and queue depth.
 - Runs stuck in `queued` or `running` beyond the lease/deadline.
 - Cloud Run container crashes and memory exhaustion.
@@ -834,10 +788,10 @@ Recommended initial limits:
 | --- | --- |
 | Queue dispatch rate | 1 per second |
 | Queue concurrent dispatches | 2 |
-| Worker concurrency | 1 |
-| Worker max instances | 3 |
-| Worker CPU / memory | 2 vCPU / 4 GiB |
-| Worker timeout | 1,800 seconds |
+| Cloud Run request concurrency | 10 |
+| Cloud Run max instances | 3 |
+| Cloud Run CPU / memory | 2 vCPU / 4 GiB |
+| Cloud Run timeout | 1,800 seconds |
 | Task dispatch deadline | 1,740 seconds |
 | Application execution budget | 1,620 seconds |
 | Max task attempts | 3 |
@@ -846,41 +800,33 @@ Recommended initial limits:
 
 Tune these only from observed run duration, memory, queue age, and provider limits.
 
-## 17. Rollback
+## 16. Rollback
 
 List revisions:
 
 ```bash
 gcloud run revisions list \
-  --service="$WEB_SERVICE" \
-  --region="$REGION"
-
-gcloud run revisions list \
-  --service="$WORKER_SERVICE" \
+  --service="$SERVICE" \
   --region="$REGION"
 ```
 
 Route traffic back to a known-good revision:
 
 ```bash
-gcloud run services update-traffic "$WEB_SERVICE" \
+gcloud run services update-traffic "$SERVICE" \
   --region="$REGION" \
-  --to-revisions="KNOWN_GOOD_WEB_REVISION=100"
-
-gcloud run services update-traffic "$WORKER_SERVICE" \
-  --region="$REGION" \
-  --to-revisions="KNOWN_GOOD_WORKER_REVISION=100"
+  --to-revisions="KNOWN_GOOD_REVISION=100"
 ```
 
-If the Cloud Run web path is unhealthy during cutover, restore the previous Vercel DNS record while investigating. Firestore run documents and Cloud Storage artifacts remain available for diagnosis.
+If the Cloud Run service is unhealthy during cutover, restore the previous Vercel DNS record while investigating. Firestore run documents and Cloud Storage artifacts remain available for diagnosis.
 
-Pause task dispatch during a worker incident:
+Pause task dispatch during a task-execution incident:
 
 ```bash
 gcloud tasks queues pause "$QUEUE" --location="$REGION"
 ```
 
-Resume after the worker is healthy:
+Resume after task execution is healthy:
 
 ```bash
 gcloud tasks queues resume "$QUEUE" --location="$REGION"
@@ -890,16 +836,16 @@ gcloud tasks queues resume "$QUEUE" --location="$REGION"
 
 - [ ] Process-local run storage replaced with Firestore.
 - [ ] Process-local scheduler replaced with Cloud Tasks.
-- [ ] Worker claims use lease heartbeats and fencing tokens on every write.
-- [ ] Web and worker service accounts have separate least-privilege roles.
-- [ ] Worker is private and accepts authenticated task invocations only.
-- [ ] OpenAI and Daytona keys exist only in Secret Manager and worker environment.
+- [ ] Task claims use lease heartbeats and fencing tokens on every write.
+- [ ] The application and task-invoker service accounts have only their required roles.
+- [ ] The public task route rejects requests without the expected Google-signed OIDC identity and audience.
+- [ ] OpenAI and Daytona keys exist only in Secret Manager and the application environment.
 - [ ] Chromium launches inside the final container image.
 - [ ] Large artifacts are stored in private Cloud Storage.
 - [ ] Artifact routes read Cloud Storage and expired live previews have a durable fallback.
 - [ ] Shared Firestore quota and enforced Cloud Armor submission throttling are active.
 - [ ] Secret versions are pinned rather than deployed from `latest`.
-- [ ] Stub verification uses a separate staging project, queue, and worker.
+- [ ] Stub verification uses a separate staging project, queue, and service.
 - [ ] Prompt and signed preview target never appear in public run JSON.
 - [ ] Stubbed end-to-end run survives service restarts.
 - [ ] One approved real provider run completes.
@@ -913,9 +859,11 @@ gcloud tasks queues resume "$QUEUE" --location="$REGION"
 
 - Cloud Run request timeouts: <https://cloud.google.com/run/docs/configuring/request-timeout>
 - Cloud Run service authentication: <https://cloud.google.com/run/docs/authenticating/service-to-service>
+- Cloud Run ingress restrictions: <https://cloud.google.com/run/docs/securing/ingress>
 - Cloud Run custom domains: <https://cloud.google.com/run/docs/mapping-custom-domains>
 - External Application Load Balancer with Cloud Run: <https://cloud.google.com/load-balancing/docs/https/setting-up-https-serverless>
 - Cloud Tasks HTTP targets: <https://cloud.google.com/tasks/docs/creating-http-target-tasks>
+- Cloud Tasks OIDC tokens: <https://cloud.google.com/tasks/docs/reference/rest/v2/OidcToken>
 - Cloud Tasks queue configuration: <https://cloud.google.com/tasks/docs/configuring-queues>
 - Cloud Tasks queue-level IAM: <https://cloud.google.com/tasks/docs/secure-queue-configuration>
 - Cloud Armor rate limiting: <https://cloud.google.com/armor/docs/rate-limiting-overview>
