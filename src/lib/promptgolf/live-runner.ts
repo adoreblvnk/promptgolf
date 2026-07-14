@@ -27,6 +27,7 @@ const EVALUATION_TIMEOUT_MS = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_EVALU
 const EVALUATION_MAX_OUTPUT_TOKENS = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_EVALUATION_MAX_OUTPUT_TOKENS, 900, { min: 128, max: 8_192, integer: true });
 const PREVIEW_PROBE_TIMEOUT_MS = 5_000;
 const MAX_PREVIEW_PROBE_BYTES = 512 * 1024;
+export const SIGNED_PREVIEW_EXPIRY_SECONDS = 3_600;
 const BUILDER_PORT = 3000;
 const REMOTE_PROJECT_DIR = "promptgolf-live";
 const configuredConcurrency = boundedEnvNumber(process.env.PROMPTGOLF_LIVE_RUN_CONCURRENCY, 2, { min: 1, max: 8, integer: true });
@@ -97,8 +98,7 @@ type DaytonaSandboxLike = {
     executeSessionCommand(sessionId: string, req: { command: string; runAsync?: boolean; suppressInputEcho?: boolean }, timeout?: number): Promise<DaytonaCommandResponse>;
     getSessionCommandLogs?: (sessionId: string, commandId: string) => Promise<{ output?: string; stdout?: string; stderr?: string }>;
   };
-  getPreviewLink?(port: number): Promise<unknown>;
-  getSignedPreviewUrl?(port: number, expiresInSeconds?: number): Promise<unknown>;
+  getSignedPreviewUrl(port: number, expiresInSeconds?: number): Promise<unknown>;
   getWorkDir?(): Promise<string | undefined>;
   waitUntilStarted?(timeout?: number): Promise<void>;
   delete?(timeout?: number): Promise<void>;
@@ -152,10 +152,20 @@ function validateRoutePath(value: string) {
   return value;
 }
 
-function previewUrlFrom(value: unknown) {
-  if (typeof value === "string") return value;
-  if (typeof value === "object" && value && "url" in value) return String(value.url);
-  return undefined;
+export async function getSignedDaytonaPreviewUrl(
+  sandbox: Pick<DaytonaSandboxLike, "getSignedPreviewUrl">,
+  port: number,
+) {
+  const preview = await sandbox.getSignedPreviewUrl(port, SIGNED_PREVIEW_EXPIRY_SECONDS);
+  if (typeof preview !== "object" || !preview || !("url" in preview) || !("token" in preview)) {
+    throw new Error("Daytona did not return a signed preview URL with an embedded authentication token.");
+  }
+  const url = typeof preview.url === "string" ? preview.url : "";
+  const token = typeof preview.token === "string" ? preview.token : "";
+  if (!url || !token) throw new Error("Daytona returned an incomplete signed preview URL.");
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:") throw new Error("Daytona signed preview URLs must use HTTPS.");
+  return parsed;
 }
 
 function commandOutput(response: DaytonaCommandResponse) {
@@ -174,6 +184,46 @@ export function invalidatedBuilderEvidence() {
   return { buildSucceeded: false, appStarted: false, healthVerified: false, previewVerified: false } as const;
 }
 
+type BuilderRequiredTool = "start_app" | "verify_health" | "verify_preview" | "finalize";
+
+export function builderRequiredTool(input: {
+  buildSucceeded: boolean;
+  appStarted: boolean;
+  healthVerified: boolean;
+  previewVerified: boolean;
+  healthCheckAttempted: boolean;
+  previewCheckAttempted: boolean;
+}): BuilderRequiredTool | undefined {
+  if (!input.buildSucceeded) return undefined;
+  if (!input.appStarted) return "start_app";
+  if (!input.healthVerified) return input.healthCheckAttempted ? undefined : "verify_health";
+  if (!input.previewVerified) return input.previewCheckAttempted ? undefined : "verify_preview";
+  return "finalize";
+}
+
+function dependencyManifestSignature(content: string) {
+  try {
+    const manifest = JSON.parse(content) as Record<string, unknown>;
+    const sortedRecord = (value: unknown) => value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)))
+      : {};
+    return JSON.stringify({
+      dependencies: sortedRecord(manifest.dependencies),
+      devDependencies: sortedRecord(manifest.devDependencies),
+      optionalDependencies: sortedRecord(manifest.optionalDependencies),
+      peerDependencies: sortedRecord(manifest.peerDependencies),
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+export function dependenciesChangedAfterInstall(installedManifest: string, nextManifest: string) {
+  const installed = dependencyManifestSignature(installedManifest);
+  const next = dependencyManifestSignature(nextManifest);
+  return !installed || !next || installed !== next;
+}
+
 export async function probePreview(
   url: string,
   fetcher: typeof fetch = fetch,
@@ -181,8 +231,13 @@ export async function probePreview(
   try {
     const response = await fetcher(url, {
       cache: "no-store",
+      redirect: "manual",
       signal: AbortSignal.timeout(PREVIEW_PROBE_TIMEOUT_MS),
     });
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get("location");
+      return { ready: false, observation: `preview redirected instead of serving the app${location ? ` to ${new URL(location, url).hostname}` : ""}` };
+    }
     const body = await readBoundedResponseText(response, MAX_PREVIEW_PROBE_BYTES);
     if (response.ok && /<!doctype html>|<html[\s>]/i.test(body)) {
       return { ready: true, observation: "HTML preview is ready" };
@@ -327,7 +382,10 @@ async function buildInDaytona(id: string, prompt: string) {
   let appStarted = false;
   let healthVerified = false;
   let previewVerified = false;
+  let healthCheckAttempted = false;
+  let previewCheckAttempted = false;
   let startCommandId: string | undefined;
+  let installedManifest: string | undefined;
   let lastBuildCommand = "npm run build";
   let lastStartCommand = "npm start";
   let lastHealthPath = "/health";
@@ -366,7 +424,9 @@ async function buildInDaytona(id: string, prompt: string) {
     const daytona = new Daytona();
     sandbox = await daytona.create(
       {
+        image: "node:22-bookworm-slim",
         language: "typescript",
+        resources: { cpu: 2, memory: 4, disk: 8 },
         autoStopInterval: 15,
         autoArchiveInterval: 30,
         autoDeleteInterval: 120,
@@ -382,7 +442,7 @@ async function buildInDaytona(id: string, prompt: string) {
     await sandbox.process.createSession("promptgolf-inspect");
     await sandbox.process.executeSessionCommand("promptgolf-builder", { command: `rm -rf ${shellQuote(remoteRoot)} && mkdir -p ${shellQuote(remoteRoot)}`, suppressInputEcho: true }, 20);
     updateLiveRun(id, { sandboxMode: `Daytona sandbox ${sandbox.id ?? "created"}` });
-    appendLiveRunEvent(id, "sandbox", "success", "Daytona sandbox created. Builder tools are scoped to its project directory.");
+    appendLiveRunEvent(id, "sandbox", "success", "Daytona sandbox created with at least 2 CPU and 4 GiB memory. Builder tools are scoped to its project directory.");
 
     const tools = {
       list_files: tool({
@@ -422,6 +482,9 @@ async function buildInDaytona(id: string, prompt: string) {
           try {
             ensureWallClock();
             const relativePath = normalizeRelativePath(requestedPath);
+            if (relativePath === "package.json" && installedManifest && dependenciesChangedAfterInstall(installedManifest, content)) {
+              throw new Error("Dependency versions are locked after the first successful install. Repair source, scripts, or framework configuration without rewriting dependency ranges.");
+            }
             const size = Buffer.byteLength(content, "utf8");
             if (size > BUILDER_FILE_BYTES) throw new Error(`File exceeds ${BUILDER_FILE_BYTES} byte limit.`);
             const previousSize = fileSizes.get(relativePath) ?? 0;
@@ -438,6 +501,8 @@ async function buildInDaytona(id: string, prompt: string) {
             fileSizes.set(relativePath, size);
             workspaceBytes = nextWorkspaceBytes;
             ({ buildSucceeded, appStarted, healthVerified, previewVerified } = invalidatedBuilderEvidence());
+            healthCheckAttempted = false;
+            previewCheckAttempted = false;
             return { ok: true, path: relativePath, bytes: size, files: fileSizes.size, workspaceBytes };
           } catch (error) {
             return { ok: false, error: clip(error instanceof Error ? error.message : String(error), 1000) };
@@ -451,8 +516,18 @@ async function buildInDaytona(id: string, prompt: string) {
           try {
             const approved = classifyApprovedCommand(command);
             if (!approved) throw new Error("Command is not approved. Allowed: npm install, npm ci, npm run build, npx next build, npm run typecheck, npx tsc --noEmit, npm run lint, npm test, npm run test.");
+            if (approved.kind === "install" && installedManifest) {
+              appendLiveRunEvent(id, "sandbox", "info", `Builder skipped duplicate install command: ${approved.command}. Dependency versions are already installed and locked.`);
+              return { ok: true, skipped: true, command: approved.command, exitCode: 0, output: "Dependencies are already installed and locked; duplicate install skipped." };
+            }
             appendLiveRunEvent(id, approved.kind === "build" ? "generate" : "sandbox", "info", `Builder running ${approved.kind} command: ${approved.command}`);
             const response = await executeWorkspaceCommand(approved.command, approved.timeout);
+            if (approved.kind === "install" && isSuccessExit(response.exitCode)) {
+              const manifest = await sandbox!.fs.downloadFile(toRemote("package.json"), 20);
+              const content = manifest.toString("utf8");
+              if (!dependencyManifestSignature(content)) throw new Error("A valid package.json is required after dependency installation.");
+              installedManifest = content;
+            }
             if (approved.kind === "build") {
               buildSucceeded = isSuccessExit(response.exitCode);
               if (buildSucceeded) lastBuildCommand = approved.command;
@@ -497,6 +572,8 @@ async function buildInDaytona(id: string, prompt: string) {
             );
             startCommandId = response.cmdId;
             appStarted = true;
+            healthCheckAttempted = false;
+            previewCheckAttempted = false;
             lastStartCommand = startCommand;
             return { ok: true, command: startCommand, commandId: response.cmdId ?? "started" };
           } catch (error) {
@@ -512,6 +589,7 @@ async function buildInDaytona(id: string, prompt: string) {
         execute: async ({ path: routePath }) => {
           try {
             if (!appStarted) throw new Error("start_app must succeed before verify_health.");
+            healthCheckAttempted = true;
             const safePath = validateRoutePath(routePath);
             const response = await runLocalHttpProbe({ sandbox: sandbox!, sessionId: "promptgolf-inspect", port: BUILDER_PORT, routePath: safePath, expectHtml: false });
             lastDiagnostics = clip(commandOutput(response));
@@ -531,6 +609,7 @@ async function buildInDaytona(id: string, prompt: string) {
         execute: async ({ path: routePath }) => {
           try {
             if (!appStarted) throw new Error("start_app must succeed before verify_preview.");
+            previewCheckAttempted = true;
             const safePath = validateRoutePath(routePath);
             const response = await runLocalHttpProbe({ sandbox: sandbox!, sessionId: "promptgolf-inspect", port: BUILDER_PORT, routePath: safePath, expectHtml: true });
             lastDiagnostics = clip(commandOutput(response));
@@ -571,7 +650,7 @@ async function buildInDaytona(id: string, prompt: string) {
     await generateText({
       model: openai.responses(OPENAI_BUILDER_MODEL),
       system:
-        "You are PromptGolf's bounded coding agent. Use only the provided Daytona tools. Never ask for or expose secrets. Never call external provider CLIs. Keep all work under the workspace root. Required loop: write files, install/build/typecheck or test, inspect diagnostics, repair inside the workspace, start the app, verify health, verify preview, then finalize. Produce a framework-native multi-file project with current patched dependency versions, complete dependencies, resolving imports, production build success, PORT support, HTTP 200 health route, accessible controls, responsive layout, visible loading/error/success states, and compliance with the contestant prompt. Treat install-time vulnerability and deprecation warnings as diagnostics to repair, not as a successful final state. Do not reveal or infer hidden EvalSpecs. If the loop limit is reached, stop without claiming success.",
+        "You are PromptGolf's bounded coding agent. Use only the provided Daytona tools. Never ask for or expose secrets. Never call external provider CLIs. Keep all work under the workspace root. Required loop: write files, install once, build/typecheck or test, inspect diagnostics, repair inside the workspace, start the app, verify health, verify preview, then finalize. Produce a framework-native multi-file project with complete dependencies, resolving imports, production build success, PORT support, HTTP 200 health route, accessible controls, responsive layout, visible loading/error/success states, and compliance with the contestant prompt. Finalize dependency versions before the first install; they are locked afterward. For Next.js projects use next 16.2.9 with react and react-dom 19.2.4, and set experimental.cpus to 1 in next.config to bound page-data workers in the sandbox. Treat only a nonzero install exit, build/typecheck failure, or runtime failure as repair work; npm audit, funding, package-manager update, and deprecation notices are advisory and must not trigger dependency rewrites or another install. Do not reveal or infer hidden EvalSpecs. If the loop limit is reached, stop without claiming success.",
       prompt: buildPromptForContestant(prompt),
       tools,
       stopWhen: [() => builderLoopShouldStop(Boolean(finalization)), stepCountIs(BUILDER_STEP_LIMIT)],
@@ -585,11 +664,19 @@ async function buildInDaytona(id: string, prompt: string) {
         } satisfies OpenAIResponsesProviderOptions,
       },
       prepareStep: () => {
-        if (finalization || !buildSucceeded || !appStarted || !healthVerified || !previewVerified) return undefined;
+        if (finalization) return undefined;
+        const requiredTool = builderRequiredTool({ buildSucceeded, appStarted, healthVerified, previewVerified, healthCheckAttempted, previewCheckAttempted });
+        if (!requiredTool) return undefined;
+        const instructions: Record<BuilderRequiredTool, string> = {
+          start_app: `The production build passed. Start it now and do not write or rebuild. Use the package manifest's production start script; the last known command is ${lastStartCommand}.`,
+          verify_health: `The production app started. Verify its health route now; the expected path is ${lastHealthPath}.`,
+          verify_preview: `Health verification passed. Verify the HTML preview now; the expected path is ${lastPreviewPath}.`,
+          finalize: `All required Daytona checks have passed. Finalize now and do not answer in prose. Use packageManager npm and manifestPath package.json. Known successful metadata: buildCommand=${lastBuildCommand}; startCommand=${lastStartCommand}; healthPath=${lastHealthPath}; previewPath=${lastPreviewPath}.`,
+        };
         return {
-          activeTools: ["finalize"],
-          toolChoice: { type: "tool", toolName: "finalize" },
-          system: `All required Daytona checks have passed. Call finalize now and do not answer in prose. Use packageManager npm. Use manifestPath package.json. Known successful metadata: buildCommand=${lastBuildCommand}; startCommand=${lastStartCommand}; healthPath=${lastHealthPath}; previewPath=${lastPreviewPath}.`,
+          activeTools: [requiredTool],
+          toolChoice: { type: "tool", toolName: requiredTool },
+          system: instructions[requiredTool],
         };
       },
       experimental_onToolCallStart: ({ toolCall }) => {
@@ -615,14 +702,7 @@ async function buildInDaytona(id: string, prompt: string) {
     appendLiveRunEvent(id, "generate", "success", `Artifact adapter mapped ${canonical.capabilities.length} declared capabilities without source resemblance grading.`);
     appendLiveRunEvent(id, "generate", "success", `Builder produced ${workspaceSummary(workspace)}.`);
 
-    const preview = sandbox.getSignedPreviewUrl
-      ? await sandbox.getSignedPreviewUrl(BUILDER_PORT, 900)
-      : sandbox.getPreviewLink
-        ? await sandbox.getPreviewLink(BUILDER_PORT)
-        : undefined;
-    const previewUrl = previewUrlFrom(preview);
-    if (!previewUrl?.startsWith("http")) throw new Error("Daytona started the app but did not return a preview URL.");
-    const rendered = new URL(previewUrl);
+    const rendered = await getSignedDaytonaPreviewUrl(sandbox, BUILDER_PORT);
     rendered.pathname = finalization.previewPath;
     const upstreamPreviewUrl = rendered.toString();
     await waitForPreviewReady(id, upstreamPreviewUrl);
