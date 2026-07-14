@@ -170,3 +170,24 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+@keyframes comparator-panel-change {
+  from {
+    opacity: 0.72;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.comparator-panel {
+  animation: comparator-panel-change 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .comparator-panel {
+    animation: none;
+  }
+}

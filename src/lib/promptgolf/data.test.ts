@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { challengeCategories, challenges } from "./data";
+import { challengeCategories, challenges, runs } from "./data";
 
 describe("challenge catalog", () => {
   it("publishes complete positive-evaluation metadata without overstating availability", () => {
@@ -52,6 +52,32 @@ describe("challenge catalog", () => {
 
     for (const challenge of challenges.filter((item) => item.slug !== "mini-checkout-promo-engine")) {
       expect(challenge.workedContract).toBeUndefined();
+    }
+  });
+
+  it("keeps the landing comparator grounded in the seeded checkout runs", () => {
+    const seeded = ["naive-checkout", "structured-checkout", "expert-checkout"].map((id) => runs.find((run) => run.id === id));
+
+    expect(seeded.every(Boolean)).toBe(true);
+    expect(seeded.map((run) => run?.score.hiddenPassed)).toEqual([3, 7, 10]);
+    expect(seeded.map((run) => run?.score.hiddenTotal)).toEqual([10, 10, 10]);
+    expect(seeded.map((run) => run?.promptCount)).toEqual([1, 2, 1]);
+    expect(seeded.every((run) => Boolean(run?.promptExcerpt))).toBe(true);
+    expect(seeded.every((run) => run?.screenshotCaption.startsWith("Seeded reference:"))).toBe(true);
+    expect(seeded.every((run) => !run?.screenshotCaption.includes("generated app"))).toBe(true);
+  });
+
+  it("describes seeded scorecards as fixed reference scenarios, not fresh executions", () => {
+    for (const run of runs) {
+      expect(run.gateway).toBe("Reference condition · no provider call");
+      expect(run.sandbox).toBe("Reference condition · no sandbox provisioned");
+      expect(run.stages.every((stage) => stage.status === "documented")).toBe(true);
+
+      const stageRecord = run.stages.map(({ label, detail }) => `${label}: ${detail}`).join(" ");
+      expect(stageRecord).toContain("No builder call was made for this fixture.");
+      expect(stageRecord).toContain("No sandbox was provisioned for this fixture.");
+      expect(stageRecord).toContain("Playwright was not run for this fixture.");
+      expect(stageRecord).not.toMatch(/builder used|sandbox created|install.*run inside|Playwright evaluation.*complete/i);
     }
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { builderLoopShouldStop, invalidatedBuilderEvidence, probePreview } from "./live-runner";
+import { builderLoopShouldStop, builderRequiredTool, dependenciesChangedAfterInstall, getSignedDaytonaPreviewUrl, invalidatedBuilderEvidence, probePreview, SIGNED_PREVIEW_EXPIRY_SECONDS } from "./live-runner";
 
 describe("builder loop state", () => {
   it("stops only after verified finalization, not merely after a rejected finalize call", () => {
@@ -15,6 +15,36 @@ describe("builder loop state", () => {
       previewVerified: false,
     });
   });
+
+  it("reserves successful post-build steps for start, health, preview, and finalization", () => {
+    const base = { buildSucceeded: true, appStarted: false, healthVerified: false, previewVerified: false, healthCheckAttempted: false, previewCheckAttempted: false };
+
+    expect(builderRequiredTool(base)).toBe("start_app");
+    expect(builderRequiredTool({ ...base, appStarted: true })).toBe("verify_health");
+    expect(builderRequiredTool({ ...base, appStarted: true, healthVerified: true })).toBe("verify_preview");
+    expect(builderRequiredTool({ ...base, appStarted: true, healthVerified: true, previewVerified: true })).toBe("finalize");
+  });
+
+  it("returns repair control to the builder after a failed verification attempt", () => {
+    expect(builderRequiredTool({
+      buildSucceeded: true,
+      appStarted: true,
+      healthVerified: false,
+      previewVerified: false,
+      healthCheckAttempted: true,
+      previewCheckAttempted: false,
+    })).toBeUndefined();
+  });
+
+  it("locks dependency ranges after installation while allowing script repairs", () => {
+    const installed = JSON.stringify({ dependencies: { next: "16.2.9", react: "19.2.4" }, scripts: { build: "next build" } });
+    const scriptRepair = JSON.stringify({ dependencies: { next: "16.2.9", react: "19.2.4" }, scripts: { build: "next build --webpack" } });
+    const versionRewrite = JSON.stringify({ dependencies: { next: "16.2.10", react: "19.2.4" }, scripts: { build: "next build" } });
+
+    expect(dependenciesChangedAfterInstall(installed, scriptRepair)).toBe(false);
+    expect(dependenciesChangedAfterInstall(installed, versionRewrite)).toBe(true);
+    expect(dependenciesChangedAfterInstall(installed, "not json")).toBe(true);
+  });
 });
 
 describe("sandbox preview readiness probe", () => {
@@ -27,8 +57,20 @@ describe("sandbox preview readiness probe", () => {
     });
     expect(fetcher).toHaveBeenCalledWith(
       "https://sandbox.example",
-      expect.objectContaining({ cache: "no-store", signal: expect.any(AbortSignal) }),
+      expect.objectContaining({ cache: "no-store", redirect: "manual", signal: expect.any(AbortSignal) }),
     );
+  });
+
+  it("rejects an authentication redirect instead of accepting Auth0 HTML", async () => {
+    const fetcher = vi.fn(async () => new Response(null, {
+      status: 302,
+      headers: { location: "https://daytonaio.us.auth0.com/u/login" },
+    }));
+
+    await expect(probePreview("https://3000-private.daytonaproxy01.net", fetcher as typeof fetch)).resolves.toEqual({
+      ready: false,
+      observation: "preview redirected instead of serving the app to daytonaio.us.auth0.com",
+    });
   });
 
   it("rejects oversized preview bodies without retaining them", async () => {
@@ -47,5 +89,29 @@ describe("sandbox preview readiness probe", () => {
       ready: false,
       observation: "HTTP 200; body: service starting",
     });
+  });
+});
+
+describe("Daytona signed preview URL", () => {
+  it("requires a signed response and requests the explicit safe expiry", async () => {
+    const getSignedPreviewUrl = vi.fn(async () => ({
+      url: "https://3000-signed-token.daytonaproxy01.net",
+      token: "signed-token",
+    }));
+
+    await expect(getSignedDaytonaPreviewUrl({ getSignedPreviewUrl }, 3000)).resolves.toEqual(
+      new URL("https://3000-signed-token.daytonaproxy01.net"),
+    );
+    expect(getSignedPreviewUrl).toHaveBeenCalledWith(3000, SIGNED_PREVIEW_EXPIRY_SECONDS);
+    expect(SIGNED_PREVIEW_EXPIRY_SECONDS).toBe(3600);
+  });
+
+  it.each([
+    undefined,
+    { url: "https://3000-private.daytonaproxy01.net" },
+    { url: "https://3000-private.daytonaproxy01.net", token: "" },
+  ])("rejects a standard or malformed preview response %#", async (preview) => {
+    const getSignedPreviewUrl = vi.fn(async () => preview);
+    await expect(getSignedDaytonaPreviewUrl({ getSignedPreviewUrl }, 3000)).rejects.toThrow(/signed preview URL/i);
   });
 });

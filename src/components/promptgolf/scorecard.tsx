@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, CircleDashed, LoaderCircle, Trophy, X } from "lucide-react";
+import { Check, Trophy, X } from "lucide-react";
 import { Bezel, GlassCard } from "@/components/promptgolf/chrome";
 import type { Run } from "@/lib/promptgolf";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,7 @@ export function ScorePill({ run }: { run: Run }) {
     <div className="flex items-center gap-3 rounded border border-warn/30 bg-warn-soft p-2 pr-4">
       <div className="flex size-12 items-center justify-center rounded bg-warn font-mono text-lg font-semibold tabular-nums text-paper">{toParLabel}</div>
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-warn">official round · {score}/100</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-warn">reference round · {score}/100</div>
         <div className="font-mono text-[12px] text-ink-soft">{run.score.hiddenPassed}/{run.score.hiddenTotal} hidden · {run.promptCount} stroke{run.promptCount === 1 ? "" : "s"}</div>
       </div>
     </div>
@@ -61,7 +61,7 @@ export function Scorecard({ run }: { run: Run }) {
       <GlassCard className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">{run.provider} · {run.model}</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">Reference conditions · {run.provider} · {run.model}</div>
             <h2 className="mt-1.5 text-xl font-semibold tracking-[-0.02em] text-ink">{run.player}</h2>
             <p className="mt-2 max-w-2xl text-[13px] leading-5.5 text-ink-soft">{run.promptExcerpt}</p>
           </div>
@@ -127,7 +127,7 @@ export function GeneratedAppCard({ run }: { run: Run }) {
         <div className="flex items-center justify-between border-b border-rule pb-4">
           <div>
             <div className="font-medium text-ink">{run.screenshotTitle}</div>
-            <div className="font-mono text-xs text-ink-muted">generated checkout preview</div>
+            <div className="font-mono text-xs text-ink-muted">seeded checkout scenario · shared reference schematic</div>
           </div>
           <div className="flex gap-1.5" aria-hidden="true"><i className="size-2.5 rounded-full bg-fail" /><i className="size-2.5 rounded-full bg-warn" /><i className="size-2.5 rounded-full bg-pass" /></div>
         </div>
@@ -144,21 +144,16 @@ export function GeneratedAppCard({ run }: { run: Run }) {
   );
 }
 
-function StageIcon({ status }: { status: Run["stages"][number]["status"] }) {
-  if (status === "complete") return <Check className="size-4" aria-hidden="true" />;
-  if (status === "running") return <LoaderCircle className="size-4" aria-hidden="true" />;
-  return <CircleDashed className="size-4" aria-hidden="true" />;
-}
-
 export function RunTimeline({ run }: { run: Run }) {
   return (
     <GlassCard className="p-4 sm:p-5">
-      <div className="flex items-center justify-between gap-3"><h2 className="text-base font-semibold text-ink">Execution timeline</h2><span className="font-mono text-[10px] text-ink-muted">deterministic scoring before diagnosis</span></div>
-      <ol className="mt-3 divide-y divide-rule overflow-hidden rounded border border-rule" aria-label="Sandbox run stages">
+      <div className="flex items-center justify-between gap-3"><h2 className="text-base font-semibold text-ink">Reference scenario record</h2><span className="font-mono text-[10px] text-ink-muted">fixed scoring narrative</span></div>
+      <p className="mt-2 text-[12px] leading-5 text-ink-muted">Authored fixture conditions only. No provider, sandbox, builder, or Playwright job was freshly executed for this scorecard.</p>
+      <ol className="mt-3 divide-y divide-rule overflow-hidden rounded border border-rule" aria-label="Seeded reference scenario conditions">
         {run.stages.map((stage) => (
           <li key={stage.label} className="flex gap-3 bg-card px-3 py-3" aria-label={`${stage.label}: ${stage.status}. ${stage.detail}`}>
-            <div className={cn("mt-0.5 flex size-7 shrink-0 items-center justify-center rounded border", stage.status === "complete" ? "border-pass/30 bg-pass-soft text-pass" : stage.status === "running" ? "border-warn/35 bg-warn-soft text-warn" : "border-rule bg-paper text-ink-muted")}>
-              <StageIcon status={stage.status} />
+            <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded border border-rule bg-paper text-ink-muted">
+              <Check className="size-4" aria-hidden="true" />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">

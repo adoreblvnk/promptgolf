@@ -28,14 +28,14 @@ export function WorkbenchShell({ children }: { children: ReactNode }) {
 export function TopNav() {
   return (
     <header className="sticky top-0 z-30 shrink-0 border-b border-rule bg-[#15171b]">
-      <nav className="flex min-h-[52px] items-center gap-2 px-3 sm:px-4">
-        <Link href="/" className="flex min-h-9 shrink-0 items-center gap-2 rounded px-1.5">
+      <nav aria-label="Primary navigation" className="flex min-h-[52px] items-center gap-1 px-2 sm:gap-2 sm:px-4">
+        <Link href="/" aria-label="PromptGolf home" className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded px-1 sm:px-1.5">
           <span className="flex size-7 items-center justify-center rounded bg-accent font-mono text-[11px] font-semibold text-accent-foreground">PG</span>
           <span className="hidden font-mono text-[13px] font-medium tracking-tight text-ink sm:inline">prompt<span className="text-accent">golf</span></span>
         </Link>
         <span className="h-5 w-px shrink-0 bg-rule" aria-hidden="true" />
         <ProductNav />
-        <Link href="/runs/expert-checkout" className="ml-auto hidden min-h-8 shrink-0 items-center gap-2 rounded border border-rule px-2.5 text-xs text-ink-soft hover:bg-white/[0.04] sm:inline-flex">
+        <Link href="/runs/expert-checkout" className="ml-auto hidden min-h-11 shrink-0 items-center gap-2 rounded border border-rule px-2.5 text-xs text-ink-soft hover:bg-white/[0.04] sm:inline-flex">
           <CircleUserRound className="size-3.5" /> Player 01
         </Link>
       </nav>

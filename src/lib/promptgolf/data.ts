@@ -1,5 +1,5 @@
 import { scoreRun, type ScoreBreakdown, type TestResult } from "./scoring";
-import { collectRunProviderState, getDaytonaAdapterStatus, getOpenAIAdapterStatus, type ProviderProbe } from "./adapters";
+import { collectRunProviderState, type ProviderProbe } from "./adapters";
 
 export type Challenge = {
   slug: string;
@@ -32,7 +32,7 @@ export type Challenge = {
 
 export type RunStage = {
   label: string;
-  status: "complete" | "running" | "queued";
+  status: "documented";
   detail: string;
 };
 
@@ -102,22 +102,12 @@ function makeTests(hiddenPassed: string[]): TestResult[] {
 }
 
 function makeStages(): RunStage[] {
-  const daytona = getDaytonaAdapterStatus();
-
   return [
-    { label: "Resolve model", status: "complete", detail: "OpenAI AI SDK v6 selected: gpt-5.4-mini for live builder, visual judge, and prompt diagnosis." },
-    {
-      label: "Provision sandbox",
-      status: daytona.mode === "live" ? "running" : "queued",
-      detail:
-        daytona.mode === "live"
-          ? "Live sandbox adapter is configured; run creation probes the sandbox API and reports connected or degraded state."
-          : "Live sandbox adapter is unavailable because sandbox credentials are not configured.",
-    },
-    { label: "Generate app", status: "complete", detail: "OpenAI builder used bounded Daytona tools to write, inspect, repair, and finalize the project." },
-    { label: "Install + build", status: "complete", detail: "Approved install/build/typecheck/test commands run inside Daytona only." },
-    { label: "Playwright evaluation", status: "complete", detail: "Stored EvalSpecs materialized into deterministic Playwright behavior checks." },
-    { label: "Scorecard", status: "complete", detail: "Scoring rewards public tests, hidden tests, UX/style, and prompt efficiency." },
+    { label: "Seeded fixture", status: "documented", detail: "Authored reference scenario for comparing naive, structured, and domain-expert specifications." },
+    { label: "Builder condition", status: "documented", detail: "Fixed narrative condition: OpenAI gpt-5.4-mini. No builder call was made for this fixture." },
+    { label: "Sandbox condition", status: "documented", detail: "Fixed narrative condition: Daytona isolation. No sandbox was provisioned for this fixture." },
+    { label: "Behavior expectations", status: "documented", detail: "Expected outcomes map to stored EvalSpec categories; Playwright was not run for this fixture." },
+    { label: "Reference score", status: "documented", detail: "The authored score demonstrates the scoring narrative under these fixed conditions." },
   ];
 }
 
@@ -512,7 +502,7 @@ const seededRunsBase = [
     uxScore: 6,
     failureCategories: ["Money math", "Promo normalization", "Inventory safety", "Double-submit", "Quantity bounds"],
     screenshotTitle: "Happy-path checkout",
-    screenshotCaption: "Looks complete in the browser, but hidden ecommerce behavior is mostly unspecified.",
+    screenshotCaption: "Seeded reference: a complete-looking checkout with most hidden ecommerce behavior left unspecified.",
   },
   {
     id: "structured-checkout",
@@ -524,7 +514,7 @@ const seededRunsBase = [
     uxScore: 8,
     failureCategories: ["Shipping threshold order", "Out-of-stock block", "Double-submit race"],
     screenshotTitle: "Robust checkout shell",
-    screenshotCaption: "Structured requirements catch most bugs, but misses a few domain-specific checkout rules.",
+    screenshotCaption: "Seeded reference: structured requirements cover most checks but omit a few domain-specific checkout rules.",
   },
   {
     id: "expert-checkout",
@@ -536,21 +526,19 @@ const seededRunsBase = [
     uxScore: 9,
     failureCategories: ["None - all requested hidden checkout checks passed"],
     screenshotTitle: "Production-aware checkout",
-    screenshotCaption: "The prompt names the domain quirks hidden tests care about, so the generated app survives reality.",
+    screenshotCaption: "Seeded reference: the named domain rules align with every stored checkout check in this scorecard.",
   },
 ];
 
 export const runs: Run[] = seededRunsBase.map((run) => {
   const tests = makeTests(run.hiddenPassed);
-  const openai = getOpenAIAdapterStatus();
-  const daytona = getDaytonaAdapterStatus();
   return {
     ...run,
     challengeSlug: "mini-checkout-promo-engine",
     provider: "OpenAI AI SDK v6",
     model: "gpt-5.4-mini",
-    gateway: openai.mode === "live" ? `OpenAI live model · ${openai.model}` : "OpenAI unavailable · set OPENAI_API_KEY",
-    sandbox: daytona.mode === "live" ? "Live sandbox adapter configured" : "Sandbox unavailable · configure credentials",
+    gateway: "Reference condition · no provider call",
+    sandbox: "Reference condition · no sandbox provisioned",
     stages: makeStages(),
     tests,
     score: scoreRun(tests, run.uxScore, run.promptCount),
