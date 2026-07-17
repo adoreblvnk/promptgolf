@@ -37,7 +37,7 @@ Read-only reference: `/home/adoreblvnk/Documents/promptgolf`.
 
 Useful ideas inspected: dense `catalog-board.tsx` rows, `arena-shell.tsx` mobile pane switching, compact shell navigation, challenge metadata, golf score terminology, and the rule that game imagery should not leak into task-focused surfaces.
 
-No assets were copied. The reference repository had no root license file. The original redesign generated no imagery; the later dark-theme regeneration of existing PromptGolf assets is documented separately in `evidence/theme-assets/README.md`.
+No assets were copied. The reference repository had no root license file.
 
 ## Screenshots
 

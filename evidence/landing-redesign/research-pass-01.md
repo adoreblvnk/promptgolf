@@ -33,18 +33,11 @@ PromptGolf should not imitate an online judge, an AI leaderboard, or a polished 
 
 ### Asset findings
 
-- `public/promptgolf-hero-bg.png` — 1672×941, ~1.2 MB, referenced only on `/`. Dark blueprint/grid field, right-weighted evaluator tables, golf trajectory, and scoring panels; strong left-side text-safe space. It is coherent with the graphite palette but leans toward generic “AI control room” abstraction. The golf trajectory is the only ownable motif.
-- `public/promptgolf-hidden-tests-bg.png` — 1672×941, ~1.2 MB, not referenced in source. Dense central evaluator/flow diagram with check matrices and contour map. Visually polished but almost no copy-safe space and too abstract to communicate the human thesis without explanation.
-- `public/promptgolf-scorecard-bg.png` — 1672×941, ~1.1 MB, not referenced in source. Horizontal spec → build → checks → target flow. Clearer than the hidden-tests asset, but still an infrastructure diagram rather than a human-selection story.
 - `public/images/promptgolf-share-card.png` — 1536×864, ~536 KB. Existing social asset; not assessed as a landing-page visual in this pass.
-- The three generated backgrounds total roughly 3.5 MB, while only one is wired into the app. Before implementation, either give retained assets a specific narrative role or remove them from the landing scope; do not add generated media by reflex.
 
 ### Current technical/accessibility risks to verify later
 
 - The comparator’s failed-reason and status labels are `shrink-0`; narrow mobile widths may squeeze or truncate the test name rather than reflowing.
-- The full-page cover background is applied to `AppShell`, so the 1.2 MB raster potentially paints far beyond the hero and may create unnecessary mobile transfer/decode cost.
-- The hero uses a CSS gradient overlay over a raster background. It is functional for legibility, but the final direction should avoid treating a generic dark dashboard image plus gradient scrim as the brand idea.
-- Generated image alt semantics are currently avoided because the hero background is decorative. If future media carries evidence, it must become semantic or receive an equivalent textual explanation.
 - Local visual rendering could not run in this checkpoint because dependencies are not installed (`next: not found`). Source and asset inspection remained read-only; browser verification belongs to the implementation/hardening milestones after dependency setup.
 
 ## Directly inspected live sources
