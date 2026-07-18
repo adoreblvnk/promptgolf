@@ -1,6 +1,6 @@
 # PromptGolf Project Context
 
-Last updated: 2026-07-13, for the OpenAI + Daytona production evaluation architecture.
+Last updated: 2026-07-18, for the OpenAI + Daytona + Doubleword production evaluation architecture.
 
 This document is the source of truth for building PromptGolf.
 
@@ -44,7 +44,7 @@ The current product slice is a real local flow with provider-backed boundaries.
 - Live mode fails honestly when required provider steps are unavailable. Local artifact substitution is allowed only in explicit CI stub mode.
 - `POST /api/runs` remains available for deterministic naive/structured/expert seeded reference runs.
 - Seeded run pages, the leaderboard, scorecards, provider posture, generated-checkout preview surfaces, and API routes should remain functional under `npm run build`.
-- Provider integrations use OpenAI and Daytona adapters where keys are present and report unavailable/degraded state when services cannot be reached.
+- Provider integrations use OpenAI, Daytona, and Doubleword adapters where keys are present and report unavailable/degraded state when services cannot be reached.
 
 Do not print or commit real secrets. `.env` contains provider keys.
 
@@ -59,7 +59,7 @@ User-facing routes:
 - `/` - landing page.
 - `/challenges` - challenge catalog.
 - `/challenges/[slug]` - challenge detail, public brief, prompt guide, and prompt submission.
-- `/live-runs/[id]` - live generated checkout run with SSE timeline, same-origin preview proxy, Playwright results, OpenAI visual judgment, and post-score OpenAI diagnosis.
+- `/live-runs/[id]` - live generated checkout run with SSE timeline, same-origin preview proxy, Playwright results, OpenAI visual judgment, and post-score Doubleword diagnosis.
 - `/runs/[id]` - seeded/reference scorecard run page.
 - `/leaderboard` - seeded leaderboard.
 
@@ -167,20 +167,22 @@ Use copy like: “A one-shot prompt is not a paragraph. It is a compact engineer
 
 ## Provider Policy
 
-Live model paths:
+Live provider paths:
 
-- Use only `@ai-sdk/openai` with `OPENAI_API_KEY` for live model calls.
+- Use `@ai-sdk/openai` with `OPENAI_API_KEY` for the live builder and visual judge.
+- Use `@doubleword/vercel-ai` with `DOUBLEWORD_API_KEY` for post-score prompt diagnosis.
 - Builder model: `gpt-5.4-mini`, reasoning `medium`, verbosity `low`.
 - Visual judge model: `gpt-5.4-mini`, reasoning `low`.
-- Prompt diagnosis model: `gpt-5.4-mini`, reasoning `low`.
+- Prompt diagnosis model: async `DOUBLEWORD_MODEL`, default `Qwen/Qwen3-VL-30B-A3B-Instruct-FP8`.
 - Offline EvalSpec authoring/review only: `gpt-5.5`.
 - Behavior grading uses Playwright only, no model.
-- Do not use Moonshot, Agnes, TokenRouter, Google, Codex, handwritten OpenAI HTTP calls, model routing, or live fallback providers.
+- Do not use Moonshot, Agnes, TokenRouter, Google, Codex, handwritten provider HTTP calls, model routing, or live fallback providers.
 
 Configured provider details:
 
 - Daytona SDK is used behind the sandbox adapter for live workspace execution and preview infrastructure.
 - Daytona uses `DAYTONA_API_KEY` independently as sandbox infrastructure.
+- Doubleword uses its official Vercel AI SDK provider and `DOUBLEWORD_API_KEY`; diagnosis is advisory and never changes the locked score.
 - Stored validated EvalSpecs are checked in and reused during contestant runs.
 
 ## Live Run Pipeline
@@ -196,13 +198,14 @@ Current live execution steps:
 7. Use stored validated EvalSpecs; do not regenerate evaluator specs during contestant runs.
 8. After preview readiness, run Playwright behavior checks and OpenAI visual judging concurrently.
 9. Compute scores deterministically from behavior and visual verdicts.
-10. Run OpenAI prompt diagnosis after scoring; diagnosis never alters the score.
+10. Run Doubleword prompt diagnosis after scoring; diagnosis never alters the score.
 11. Stream timeline events over SSE and store safe run state for polling.
 
 Failure policy:
 
 - Missing `OPENAI_API_KEY` fails live generation.
 - Missing `DAYTONA_API_KEY` fails live sandbox execution.
+- Missing `DOUBLEWORD_API_KEY` degrades post-score diagnosis without changing the deterministic score.
 - Builder step-limit exhaustion, build failure, start failure, health failure, and preview failure are recorded honestly.
 - Sandbox failures fail the live run unless `PROMPTGOLF_TEST_PROVIDER_STUBS=1` is set for CI.
 - Provider failures should be shown as unavailable/degraded, not simulated success.
@@ -219,20 +222,25 @@ In the UI, show sandboxing as core infrastructure:
 
 If sandbox creation fails or is disabled, label the run disabled/degraded rather than successful.
 
-## OpenAI Presentation
+## Model Provider Presentation
 
 Use OpenAI for:
 
 - Daytona tool-calling builder loop.
 - Screenshot visual judging after preview readiness.
-- Post-score prompt diagnosis.
-- Model and usage display on run pages.
+
+Use Doubleword for:
+
+- Structured post-score prompt diagnosis.
+- Prompting-versus-domain skill feedback that never changes behavior or style scores.
+
+Show provider and model usage on run pages.
 
 UI copy examples:
 
 - “Builder: OpenAI gpt-5.4-mini · Daytona tool loop.”
 - “Behavior: stored EvalSpecs materialized by Playwright.”
-- “Diagnosis: OpenAI gpt-5.4-mini after score lock.”
+- “Diagnosis: Doubleword after score lock.”
 
 ## Scoring
 
@@ -350,7 +358,8 @@ Current `package.json` highlights:
 - shadcn package: ^4.11.0.
 - AI SDK package `ai`: ^6.0.203.
 - `@ai-sdk/openai`: ^3.0.71.
-- Daytona SDK `@daytonaio/sdk`: ^0.187.0.
+- `@doubleword/vercel-ai`: ^0.3.1.
+- Daytona SDK `@daytona/sdk`: 0.199.0.
 - Playwright: ^1.60.0.
 - Zod: ^4.4.3.
 - lucide-react: ^1.18.0.
@@ -388,7 +397,7 @@ For the current demo, implement only what is needed for the live flow, but never
 5. Show the PromptGolf spec guide.
 6. Submit or show an expert prompt score: hidden tests pass because the spec includes ecommerce edge cases.
 7. Show the leaderboard.
-8. Point to infrastructure: OpenAI drives the Daytona coding loop and visual diagnosis, Daytona sandboxes, and Playwright executes the positive behavior checks.
+8. Point to infrastructure: OpenAI drives the Daytona coding loop and visual judge, Daytona sandboxes, Playwright executes the positive behavior checks, and Doubleword diagnoses prompt skill after score lock.
 9. Close: “In the AI-agent era, the scarce skill is not typing code. It is writing specs that survive reality.”
 
 ## Product Success Criteria
@@ -401,7 +410,7 @@ The product is successful if:
 - The prompt/spec guide makes the educational wedge obvious.
 - The demo shows naive vs structured/expert prompts producing different hidden-test scores.
 - The scorecard is visually polished.
-- Daytona, OpenAI, stored EvalSpecs, and Playwright are represented through credible adapter-backed flows.
+- Daytona, OpenAI, Doubleword, stored EvalSpecs, and Playwright are represented through credible adapter-backed flows.
 - The product looks like a full working product, not a notebook or toy dashboard.
 
 Final narrative: PromptGolf is not about memorizing prompt tricks. It is about learning how to specify software to AI agents like a real engineer: with context, constraints, edge cases, validation, and domain knowledge.

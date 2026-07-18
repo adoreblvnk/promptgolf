@@ -4,7 +4,7 @@
     LeetCode for agentic prompting: fewer prompts, more passing tests.
   </p>
   <p>
-    Built with Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, AI SDK v6, OpenAI, Daytona, and Playwright.
+    Built with Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, AI SDK v6, OpenAI, Daytona, Doubleword, and Playwright.
   </p>
 </div>
 
@@ -41,7 +41,7 @@ The main challenge is a full-stack ecommerce checkout web app with cart items, q
 2. Start the Full Stack Ecommerce Checkout Web App challenge.
 3. Read the public brief and hidden-test teaser.
 4. Submit a prompt from the challenge page; the app starts a live run and redirects to `/live-runs/[id]`.
-5. Inspect the generated checkout preview, hidden-test replay, streaming log, Daytona posture, OpenAI provider state, and post-score prompt diagnosis.
+5. Inspect the generated checkout preview, hidden-test replay, streaming log, Daytona posture, OpenAI builder state, and Doubleword post-score diagnosis.
 6. Compare the seeded naive, structured, and expert reference runs on the leaderboard.
 
 ## Screenshots
@@ -61,7 +61,10 @@ The main challenge is a full-stack ecommerce checkout web app with cart items, q
 
 - Node.js 20+
 - npm
-- `OPENAI_API_KEY` for live model calls and `DAYTONA_API_KEY` for sandbox execution
+- `OPENAI_API_KEY` for the builder and visual judge
+- `DAYTONA_API_KEY` for sandbox execution
+- `DOUBLEWORD_API_KEY` for post-score prompt diagnosis
+- Optional `DOUBLEWORD_MODEL` override; defaults to `Qwen/Qwen3-VL-30B-A3B-Instruct-FP8`
 
 ### Installation
 
@@ -102,17 +105,19 @@ The submission path is intentionally real and provider-aware:
 3. Daytona hosts all file writes, approved commands, production build/start, health checks, and preview serving; unavailable providers fail honestly.
 4. The workspace adapter maps executable declarations, while Playwright observes semantic controls and behavior in the running artifact.
 5. Stored validated EvalSpecs collect positive behavior and requirement evidence; prohibited negative, mutation, fingerprint, and preferred-method strategies are rejected by policy.
-6. Seeded naive, structured, and expert scorecards remain available as stable reference runs.
+6. Doubleword produces structured prompt-versus-domain diagnosis only after the deterministic score is locked; diagnosis never changes the score.
+7. Seeded naive, structured, and expert scorecards remain available as stable reference runs.
 
 ## Provider Policy
 
-- OpenAI through `@ai-sdk/openai` is the only live model provider.
+- OpenAI through `@ai-sdk/openai` powers the live builder and screenshot visual judge.
 - Builder: `gpt-5.4-mini`, reasoning `medium`, verbosity `low`.
-- Visual judge and prompt diagnosis: `gpt-5.4-mini`, reasoning `low`; diagnosis runs after scoring and never changes the score.
+- Visual judge: `gpt-5.4-mini`, reasoning `low`.
+- Doubleword through `@doubleword/vercel-ai` powers async post-score prompt diagnosis using `DOUBLEWORD_MODEL` or `Qwen/Qwen3-VL-30B-A3B-Instruct-FP8` by default.
 - Offline EvalSpec authoring/review may use `gpt-5.5`, but contestant runs use stored validated EvalSpecs.
 - Daytona remains the isolated workspace file/build/start/health/preview sandbox.
 - Behavior grading is deterministic Playwright only, with no model-generated behavior score.
-- Live mode has no alternate provider or local artifact fallback. CI tests use explicit stub boundaries so CI never needs or exposes real secrets.
+- Providers have fixed roles with no runtime switching or local artifact fallback. Missing Doubleword credentials degrade diagnosis without altering the locked score. CI tests use explicit stub boundaries so CI never needs or exposes real secrets.
 
 ## Key Routes
 

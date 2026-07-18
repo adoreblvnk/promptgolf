@@ -52,6 +52,7 @@ test("POST /api/runs classifies submissions and reports provider state", async (
     expect.arrayContaining([
       expect.objectContaining({ name: "Daytona", status: "connected", mode: "live" }),
       expect.objectContaining({ name: "OpenAI", status: "connected", mode: "live" }),
+      expect.objectContaining({ name: "Doubleword", status: "pending", mode: "live" }),
       expect.objectContaining({ name: "Stored EvalSpecs", status: "connected", mode: "stored" }),
     ]),
   );

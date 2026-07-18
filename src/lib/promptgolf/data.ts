@@ -67,7 +67,7 @@ export type PromptSubmissionResult = {
   promptLength: number;
   providerState: ProviderProbe[];
   providerPolicy: {
-    provider: "OpenAI AI SDK v6";
+    provider: "OpenAI + Doubleword via AI SDK v6";
     model: "gpt-5.4-mini";
     note: string;
   };
@@ -595,9 +595,9 @@ export async function resolvePromptSubmission({ prompt, challengeSlug = "mini-ch
     promptLength: prompt.trim().length,
     providerState,
     providerPolicy: {
-      provider: "OpenAI AI SDK v6",
+      provider: "OpenAI + Doubleword via AI SDK v6",
       model: "gpt-5.4-mini",
-      note: "PromptGolf uses @ai-sdk/openai for live builder, visual judging, and post-score diagnosis. Daytona handles isolated execution; stored EvalSpecs drive deterministic Playwright grading with no fallback provider.",
+      note: "OpenAI builds and visually judges the app, Daytona handles isolated execution, and Doubleword provides post-score prompt diagnosis. Stored EvalSpecs drive deterministic Playwright grading with no provider fallback.",
     },
   };
 }

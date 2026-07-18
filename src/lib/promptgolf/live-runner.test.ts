@@ -1,5 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
-import { builderLoopShouldStop, builderRequiredTool, dependenciesChangedAfterInstall, getSignedDaytonaPreviewUrl, invalidatedBuilderEvidence, probePreview, SIGNED_PREVIEW_EXPIRY_SECONDS } from "./live-runner";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { getDoublewordAdapterStatus } from "./adapters";
+import { builderLoopShouldStop, builderRequiredTool, dependenciesChangedAfterInstall, diagnosePromptWithDoubleword, getSignedDaytonaPreviewUrl, invalidatedBuilderEvidence, probePreview, SIGNED_PREVIEW_EXPIRY_SECONDS } from "./live-runner";
+import { createLiveRun, deleteLiveRun, getLiveRun, updateLiveRun } from "./live-run-store";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("builder loop state", () => {
   it("stops only after verified finalization, not merely after a rejected finalize call", () => {
@@ -113,5 +119,67 @@ describe("Daytona signed preview URL", () => {
   ])("rejects a standard or malformed preview response %#", async (preview) => {
     const getSignedPreviewUrl = vi.fn(async () => preview);
     await expect(getSignedDaytonaPreviewUrl({ getSignedPreviewUrl }, 3000)).rejects.toThrow(/signed preview URL/i);
+  });
+});
+
+describe("Doubleword post-score diagnosis", () => {
+  const tests = [
+    { id: "hidden-rule", label: "Hidden rule", category: "hidden" as const, passed: false, note: "Missing domain rule" },
+  ];
+  const score = {
+    passed: 0,
+    total: 1,
+    finalScore: 0,
+    categories: [
+      { category: "functional" as const, label: "Functional", passed: 0, total: 0, score: 0 },
+      { category: "hidden" as const, label: "Hidden", passed: 0, total: 1, score: 0 },
+      { category: "style" as const, label: "UI/UX", passed: 0, total: 0, score: 0 },
+    ],
+  };
+
+  function createDiagnosableRun() {
+    const run = createLiveRun({ prompt: "Build checkout", challengeSlug: "mini-checkout-promo-engine" });
+    updateLiveRun(run.id, {
+      score,
+      providerState: [{ ...getDoublewordAdapterStatus(), status: "pending" }],
+    });
+    return run;
+  }
+
+  it("marks a successful structured diagnosis connected without changing the locked score", async () => {
+    vi.stubEnv("PROMPTGOLF_TEST_PROVIDER_STUBS", "0");
+    vi.stubEnv("DOUBLEWORD_API_KEY", "test-doubleword-key");
+    const run = createDiagnosableRun();
+    const lockedScore = structuredClone(getLiveRun(run.id)?.score);
+    const generated = vi.fn(async () => ({
+      verdict: "technical" as const,
+      promptingScore: 8,
+      technicalScore: 4,
+      summary: "The prompt is clear but omits domain rules.",
+      promptingFeedback: "Keep the acceptance criteria.",
+      technicalFeedback: "Add checkout domain boundaries.",
+    }));
+
+    await expect(diagnosePromptWithDoubleword(run.id, run.prompt, tests, score, generated)).resolves.toMatchObject({ verdict: "technical" });
+    expect(generated).toHaveBeenCalledOnce();
+    expect(getLiveRun(run.id)?.score).toEqual(lockedScore);
+    expect(getLiveRun(run.id)?.providerState.find((provider) => provider.name === "Doubleword")).toMatchObject({ status: "connected", mode: "live" });
+    deleteLiveRun(run.id);
+  });
+
+  it("degrades once with no fallback and preserves the locked score on provider failure", async () => {
+    vi.stubEnv("PROMPTGOLF_TEST_PROVIDER_STUBS", "0");
+    vi.stubEnv("DOUBLEWORD_API_KEY", "test-doubleword-key");
+    const run = createDiagnosableRun();
+    const lockedScore = structuredClone(getLiveRun(run.id)?.score);
+    const generated = vi.fn(async () => {
+      throw new Error("Malformed structured output");
+    });
+
+    await expect(diagnosePromptWithDoubleword(run.id, run.prompt, tests, score, generated)).resolves.toMatchObject({ verdict: "degraded" });
+    expect(generated).toHaveBeenCalledOnce();
+    expect(getLiveRun(run.id)?.score).toEqual(lockedScore);
+    expect(getLiveRun(run.id)?.providerState.find((provider) => provider.name === "Doubleword")).toMatchObject({ status: "degraded", mode: "degraded" });
+    deleteLiveRun(run.id);
   });
 });

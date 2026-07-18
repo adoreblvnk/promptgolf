@@ -2,7 +2,7 @@ import { generateText } from "ai";
 import { openai, type OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 import { checkoutEvaluatorSpecs } from "./evaluator-specs";
 import { boundedEnvNumber } from "./env-number";
-import { OPENAI_DIAGNOSIS_MODEL } from "./model";
+import { DOUBLEWORD_DIAGNOSIS_MODEL, OPENAI_BUILDER_MODEL } from "./model";
 import { redactSecrets } from "./redact-secrets";
 
 export type ProviderMode = "live" | "unavailable" | "degraded" | "stored" | "stubbed";
@@ -16,7 +16,7 @@ export type ProviderStatus = {
 };
 
 export type ProviderProbe = ProviderStatus & {
-  status: "connected" | "unavailable" | "degraded";
+  status: "pending" | "connected" | "unavailable" | "degraded";
   latencyMs?: number;
   output?: string;
 };
@@ -74,17 +74,35 @@ export function getOpenAIAdapterStatus(): ProviderStatus {
   return hasKey("OPENAI_API_KEY")
     ? {
         name: "OpenAI",
-        role: "builder + visual judge + prompt diagnosis",
+        role: "builder + visual judge",
         mode: "live",
-        model: OPENAI_DIAGNOSIS_MODEL,
-        detail: "OPENAI_API_KEY is configured. PromptGolf uses @ai-sdk/openai for live model calls with no alternate provider route.",
+        model: OPENAI_BUILDER_MODEL,
+        detail: "OPENAI_API_KEY is configured. PromptGolf uses @ai-sdk/openai for the live builder and screenshot judge.",
       }
     : {
         name: "OpenAI",
-        role: "builder + visual judge + prompt diagnosis",
+        role: "builder + visual judge",
         mode: "unavailable",
-        model: OPENAI_DIAGNOSIS_MODEL,
+        model: OPENAI_BUILDER_MODEL,
         detail: "OPENAI_API_KEY is not configured, so live model calls are unavailable and runs fail honestly.",
+      };
+}
+
+export function getDoublewordAdapterStatus(): ProviderStatus {
+  return hasKey("DOUBLEWORD_API_KEY")
+    ? {
+        name: "Doubleword",
+        role: "post-score prompt diagnosis",
+        mode: "live",
+        model: DOUBLEWORD_DIAGNOSIS_MODEL,
+        detail: "DOUBLEWORD_API_KEY is configured. PromptGolf uses the official @doubleword/vercel-ai async provider for structured diagnosis after the deterministic score is locked.",
+      }
+    : {
+        name: "Doubleword",
+        role: "post-score prompt diagnosis",
+        mode: "unavailable",
+        model: DOUBLEWORD_DIAGNOSIS_MODEL,
+        detail: "DOUBLEWORD_API_KEY is not configured, so prompt diagnosis reports a degraded state without changing the score.",
       };
 }
 
@@ -98,7 +116,7 @@ export function getStoredEvalSpecStatus(): ProviderStatus {
 }
 
 export function getProviderStatuses(): ProviderStatus[] {
-  return [getOpenAIAdapterStatus(), getDaytonaAdapterStatus(), getStoredEvalSpecStatus()];
+  return [getOpenAIAdapterStatus(), getDaytonaAdapterStatus(), getDoublewordAdapterStatus(), getStoredEvalSpecStatus()];
 }
 
 export const providerStatuses = getProviderStatuses();
@@ -122,7 +140,7 @@ export async function probeDaytonaStatus(): Promise<ProviderProbe> {
 
   const start = started();
   try {
-    const { Daytona } = await import("@daytonaio/sdk");
+    const { Daytona } = await import("@daytona/sdk");
     const daytona = new Daytona();
     const iterator = daytona.list({ limit: 1 });
     await Promise.race([
@@ -168,7 +186,7 @@ export async function generateOpenAIPromptFeedback(
   const start = started();
   try {
     const result = await generateText({
-      model: openai.responses(OPENAI_DIAGNOSIS_MODEL),
+      model: openai.responses(OPENAI_BUILDER_MODEL),
       system:
         options.system ??
         "You are PromptGolf's concise evaluator. Give one sentence of prompt-quality feedback. Do not reveal hidden test answers beyond broad categories.",
@@ -206,6 +224,7 @@ export async function collectRunProviderState(prompt: string): Promise<ProviderP
   return Promise.all([
     probeDaytonaStatus(),
     generateOpenAIPromptFeedback(prompt),
+    Promise.resolve({ ...getDoublewordAdapterStatus(), status: hasKey("DOUBLEWORD_API_KEY") ? "pending" as const : "unavailable" as const }),
     Promise.resolve({ ...getStoredEvalSpecStatus(), status: "connected" as const }),
   ]);
 }

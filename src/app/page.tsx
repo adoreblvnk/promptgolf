@@ -62,9 +62,11 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="grid gap-px border border-rule bg-rule md:grid-cols-3">
+            <div className="grid gap-px border border-rule bg-rule md:grid-cols-2 xl:grid-cols-5">
               <ConstantCell label="Challenge" value="Full Stack Ecommerce Checkout Web App" />
               <ConstantCell label="Builder" value="OpenAI gpt-5.4-mini" />
+              <ConstantCell label="Runtime" value="Daytona isolated sandbox" />
+              <ConstantCell label="Diagnosis" value="Doubleword after score lock" />
               <ConstantCell label="Behavior" value="Stored EvalSpecs materialized by Playwright" />
             </div>
           </div>

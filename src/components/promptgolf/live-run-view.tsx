@@ -408,7 +408,7 @@ export function LiveRunView({ id }: { id: string }) {
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-rule pb-3">
             <div>
               <h2 className="text-lg font-semibold tracking-[-0.02em] text-ink">Post-score diagnosis</h2>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">Structured analysis of prompt quality versus product-engineering knowledge.</p>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">Doubleword analysis of prompt quality versus product-engineering knowledge after the score is locked.</p>
             </div>
             <span className="rounded border border-rule bg-paper px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-ink-soft">{run.diagnosis.verdict}</span>
           </div>
