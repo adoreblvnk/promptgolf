@@ -173,7 +173,7 @@ Live provider paths:
 - Use `@doubleword/vercel-ai` with `DOUBLEWORD_API_KEY` for post-score prompt diagnosis.
 - Builder model: `gpt-5.4-mini`, reasoning `medium`, verbosity `low`.
 - Visual judge model: `gpt-5.4-mini`, reasoning `low`.
-- Prompt diagnosis model: `DOUBLEWORD_MODEL`, default `Qwen/Qwen3.5-35B-A3B-FP8`.
+- Prompt diagnosis model: async `DOUBLEWORD_MODEL`, default `Qwen/Qwen3-VL-30B-A3B-Instruct-FP8`.
 - Offline EvalSpec authoring/review only: `gpt-5.5`.
 - Behavior grading uses Playwright only, no model.
 - Do not use Moonshot, Agnes, TokenRouter, Google, Codex, handwritten provider HTTP calls, model routing, or live fallback providers.
@@ -359,7 +359,7 @@ Current `package.json` highlights:
 - AI SDK package `ai`: ^6.0.203.
 - `@ai-sdk/openai`: ^3.0.71.
 - `@doubleword/vercel-ai`: ^0.3.1.
-- Daytona SDK `@daytonaio/sdk`: ^0.187.0.
+- Daytona SDK `@daytona/sdk`: 0.199.0.
 - Playwright: ^1.60.0.
 - Zod: ^4.4.3.
 - lucide-react: ^1.18.0.

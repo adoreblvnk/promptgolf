@@ -64,7 +64,7 @@ The main challenge is a full-stack ecommerce checkout web app with cart items, q
 - `OPENAI_API_KEY` for the builder and visual judge
 - `DAYTONA_API_KEY` for sandbox execution
 - `DOUBLEWORD_API_KEY` for post-score prompt diagnosis
-- Optional `DOUBLEWORD_MODEL` override; defaults to `Qwen/Qwen3.5-35B-A3B-FP8`
+- Optional `DOUBLEWORD_MODEL` override; defaults to `Qwen/Qwen3-VL-30B-A3B-Instruct-FP8`
 
 ### Installation
 
@@ -113,7 +113,7 @@ The submission path is intentionally real and provider-aware:
 - OpenAI through `@ai-sdk/openai` powers the live builder and screenshot visual judge.
 - Builder: `gpt-5.4-mini`, reasoning `medium`, verbosity `low`.
 - Visual judge: `gpt-5.4-mini`, reasoning `low`.
-- Doubleword through `@doubleword/vercel-ai` powers post-score prompt diagnosis using `DOUBLEWORD_MODEL` or `Qwen/Qwen3.5-35B-A3B-FP8` by default.
+- Doubleword through `@doubleword/vercel-ai` powers async post-score prompt diagnosis using `DOUBLEWORD_MODEL` or `Qwen/Qwen3-VL-30B-A3B-Instruct-FP8` by default.
 - Offline EvalSpec authoring/review may use `gpt-5.5`, but contestant runs use stored validated EvalSpecs.
 - Daytona remains the isolated workspace file/build/start/health/preview sandbox.
 - Behavior grading is deterministic Playwright only, with no model-generated behavior score.

@@ -95,7 +95,7 @@ export function getDoublewordAdapterStatus(): ProviderStatus {
         role: "post-score prompt diagnosis",
         mode: "live",
         model: DOUBLEWORD_DIAGNOSIS_MODEL,
-        detail: "DOUBLEWORD_API_KEY is configured. PromptGolf uses the official @doubleword/vercel-ai provider for structured diagnosis after the deterministic score is locked.",
+        detail: "DOUBLEWORD_API_KEY is configured. PromptGolf uses the official @doubleword/vercel-ai async provider for structured diagnosis after the deterministic score is locked.",
       }
     : {
         name: "Doubleword",
@@ -140,7 +140,7 @@ export async function probeDaytonaStatus(): Promise<ProviderProbe> {
 
   const start = started();
   try {
-    const { Daytona } = await import("@daytonaio/sdk");
+    const { Daytona } = await import("@daytona/sdk");
     const daytona = new Daytona();
     const iterator = daytona.list({ limit: 1 });
     await Promise.race([

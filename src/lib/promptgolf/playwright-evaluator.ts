@@ -65,6 +65,12 @@ const moneyLabels: Record<string, string[]> = {
   total: ["total", "grand total", "order total", "amount due"],
 };
 
+const quantityProducts: Record<string, string> = {
+  qtyCanvas: "canvas tote",
+  qtyBeans: "espresso beans",
+  qtyMug: "stoneware mug",
+};
+
 function escapedAttribute(value: string) {
   return value.replace(/"/g, "\\\"");
 }
@@ -136,7 +142,7 @@ async function bodyText(page: Page) {
 }
 
 function firstMoneyNearLabel(source: string, labels: string[]) {
-  const normalized = source.replace(/\s+/g, " ");
+  const normalized = source.replace(/\b\d+(?:\.\d+)?\s*%/g, "").replace(/\s+/g, " ");
   for (const label of labels) {
     const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const after = normalized.match(new RegExp(`\\b${escaped}\\b[^$0-9-]{0,30}(-?\\$?\\d+(?:\\.\\d{2})?)`, "i"));
@@ -163,6 +169,18 @@ async function text(page: Page, key: string) {
 
   const inputValue = await page.getByTestId(key).inputValue({ timeout: 700 }).catch(() => "");
   if (inputValue.trim()) return inputValue.trim();
+
+  const quantityProduct = quantityProducts[key];
+  if (quantityProduct) {
+    const productPattern = pattern(quantityProduct);
+    const region = await firstAvailable([
+      page.getByRole("article", { name: productPattern }).first(),
+      page.locator("article").filter({ hasText: productPattern }).first(),
+      page.getByLabel(productPattern).first(),
+    ]).catch(() => undefined);
+    const quantity = await region?.getByRole("spinbutton").first().inputValue({ timeout: 700 }).catch(() => "");
+    if (quantity?.trim()) return quantity.trim();
+  }
 
   const source = await bodyText(page);
   if (moneyLabels[key]) {

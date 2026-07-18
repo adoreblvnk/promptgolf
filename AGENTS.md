@@ -28,7 +28,7 @@ PromptGolf is a competitive benchmark for agentic prompting: fewer prompts, more
 
 - Builder: OpenAI `gpt-5.4-mini`, reasoning `medium`, verbosity `low`.
 - Visual judge: OpenAI `gpt-5.4-mini`, reasoning `low`.
-- Prompt diagnosis: Doubleword `DOUBLEWORD_MODEL`, default `Qwen/Qwen3.5-35B-A3B-FP8`.
+- Prompt diagnosis: Doubleword async `DOUBLEWORD_MODEL`, default `Qwen/Qwen3-VL-30B-A3B-Instruct-FP8`.
 - Offline EvalSpec authoring/review only: `gpt-5.5`.
 - Behavior grading: Playwright only, no model.
 - Do not use Moonshot, Agnes, TokenRouter, Google, Codex, handwritten provider HTTP calls, model routing, or live fallback providers.

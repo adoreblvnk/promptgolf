@@ -13,7 +13,7 @@ describe("Doubleword adapter status", () => {
       name: "Doubleword",
       role: "post-score prompt diagnosis",
       mode: "live",
-      model: "Qwen/Qwen3.5-35B-A3B-FP8",
+      model: "Qwen/Qwen3-VL-30B-A3B-Instruct-FP8",
     });
     expect(getProviderStatuses().map((provider) => provider.name)).toContain("Doubleword");
   });

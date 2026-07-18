@@ -62,10 +62,10 @@ export const checkoutEvaluatorSpecs: NaturalLanguageEvaluatorSpec[] = [
     label: "Stock and quantity boundaries",
     category: "functional",
     intent: "Quantity controls enforce stock limits and do not let out-of-stock zero-quantity items decrement below zero.",
-    actions: [{ kind: "click", target: { by: "label", pattern: "increase canvas tote" } }],
+    actions: [{ kind: "click", target: { by: "label", pattern: "increase(?: quantity(?: for)?)? canvas tote" } }],
     assertions: [
       { kind: "numberAtMost", testId: "qtyCanvas", max: 3 },
-      { kind: "isDisabled", target: { by: "label", pattern: "decrease stoneware mug" } },
+      { kind: "isDisabled", target: { by: "label", pattern: "decrease(?: quantity(?: for)?)? stoneware mug" } },
     ],
   },
   {
@@ -76,7 +76,7 @@ export const checkoutEvaluatorSpecs: NaturalLanguageEvaluatorSpec[] = [
     actions: [],
     assertions: [
       { kind: "textMatches", target: { by: "testIdText", testId: "itemMug", pattern: "out of stock|stock 0" }, pattern: "out of stock|stock 0" },
-      { kind: "isDisabled", target: { by: "label", pattern: "increase stoneware mug" } },
+      { kind: "isDisabled", target: { by: "label", pattern: "increase(?: quantity(?: for)?)? stoneware mug" } },
     ],
   },
   {

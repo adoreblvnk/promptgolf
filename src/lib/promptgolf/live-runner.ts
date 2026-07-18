@@ -1,11 +1,11 @@
 import path from "node:path";
 import { generateObject, generateText, stepCountIs, tool } from "ai";
 import { openai, type OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
-import { doubleword } from "@doubleword/vercel-ai";
 import { z } from "zod";
 import { getDoublewordAdapterStatus, getOpenAIAdapterStatus, getStoredEvalSpecStatus, probeDaytonaStatus, type ProviderMode } from "./adapters";
 import { adaptWorkspace } from "./artifact-adapter";
 import { boundedEnvNumber } from "./env-number";
+import { generateDoublewordDiagnosis } from "./doubleword-diagnosis";
 import { checkoutEvaluatorSpecs } from "./evaluator-specs";
 import { deterministicCheckoutWorkspace } from "./live-run-fixture";
 import { appendLiveRunEvent, createLiveRun, deleteLiveRun, getLiveRun, sanitizeLog, updateLiveRun, type LiveRunCategoryScore, type LiveRunSkillDiagnosis, type LiveRunTestCategory, type LiveRunTestResult } from "./live-run-store";
@@ -45,15 +45,6 @@ const STYLE_TESTS: Array<Pick<LiveRunTestResult, "id" | "label" | "category">> =
   { id: "style-visual-hierarchy", label: "Checkout visual hierarchy and clarity", category: "style" },
   { id: "style-mobile-usability", label: "Mobile UI/UX and touch ergonomics", category: "style" },
 ];
-
-const SkillDiagnosisSchema = z.object({
-  verdict: z.enum(["prompting", "technical", "balanced"]),
-  promptingScore: z.number().int().min(0).max(10),
-  technicalScore: z.number().int().min(0).max(10),
-  summary: z.string().min(1).max(220),
-  promptingFeedback: z.string().min(1).max(180),
-  technicalFeedback: z.string().min(1).max(180),
-});
 
 type DoublewordDiagnosisGenerator = (input: { system: string; prompt: string }) => Promise<LiveRunSkillDiagnosis>;
 
@@ -426,7 +417,7 @@ async function buildInDaytona(id: string, prompt: string) {
     });
     appendLiveRunEvent(id, "generate", "info", `Starting OpenAI builder loop (${OPENAI_BUILDER_MODEL}, reasoning medium, verbosity low).`);
     appendLiveRunEvent(id, "sandbox", "info", "Creating isolated Daytona sandbox with auto-stop/archive/delete policy.");
-    const { Daytona } = await import("@daytonaio/sdk");
+    const { Daytona } = await import("@daytona/sdk");
     const daytona = new Daytona();
     sandbox = await daytona.create(
       {
@@ -843,19 +834,6 @@ function updateDoublewordProviderState(
   });
 }
 
-async function generateDoublewordDiagnosis(input: { system: string; prompt: string }) {
-  const result = await generateObject({
-    model: doubleword(DOUBLEWORD_DIAGNOSIS_MODEL),
-    schema: SkillDiagnosisSchema,
-    system: input.system,
-    prompt: input.prompt,
-    maxOutputTokens: 700,
-    maxRetries: 0,
-    timeout: EVALUATION_TIMEOUT_MS,
-  });
-  return result.object;
-}
-
 export async function diagnosePromptWithDoubleword(
   id: string,
   prompt: string,
@@ -889,14 +867,14 @@ export async function diagnosePromptWithDoubleword(
   }
 
   try {
-    appendLiveRunEvent(id, "score", "info", `Running Doubleword prompt diagnosis (${DOUBLEWORD_DIAGNOSIS_MODEL}) after deterministic scoring.`);
+    appendLiveRunEvent(id, "score", "info", `Running Doubleword async prompt diagnosis (${DOUBLEWORD_DIAGNOSIS_MODEL}) after deterministic scoring.`);
     const compactResults = tests.map((test) => ({ id: test.id, category: test.category, passed: test.passed, note: test.note.slice(0, 180) }));
     const diagnosis = await generateDiagnosis({
       system:
         "You are PromptGolf's concise skill diagnostician. Score the submitted prompt, not the generated app alone. Decide whether failures mainly show prompting skill gaps, technical/domain knowledge gaps, or a balanced mix. Do not reveal hidden test answers verbatim. Return only the requested structured object.",
       prompt: `Prompt submitted by contestant:\n${prompt.slice(0, 5000)}\n\nOverall and category score:\n${JSON.stringify(score)}\n\nEvaluator results:\n${JSON.stringify(compactResults)}\n\nScoring rubric: promptingScore measures clarity, specificity, and testable acceptance criteria. technicalScore measures encoded product/domain engineering knowledge. Both are integers from 0 to 10. Keep feedback concise enough for a scorecard panel. Diagnosis must not modify the already-computed score.`,
     });
-    updateDoublewordProviderState(id, "connected", `Doubleword structured diagnosis succeeded with ${DOUBLEWORD_DIAGNOSIS_MODEL}.`);
+    updateDoublewordProviderState(id, "connected", `Doubleword async structured diagnosis succeeded with ${DOUBLEWORD_DIAGNOSIS_MODEL}.`);
     return diagnosis;
   } catch (error) {
     const message = sanitizeLog(error instanceof Error ? error.message : String(error));
