@@ -54,7 +54,7 @@ export function SpecEditor({ action, challengeSlug, starterPrompt, minLength, ma
         </div>
         <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 text-[11px] leading-5 text-ink-muted">
-            <strong className="font-medium text-ink-soft">Builder</strong> OpenAI gpt-5.4-mini · <strong className="font-medium text-ink-soft">Runtime</strong> Daytona · <strong className="font-medium text-ink-soft">Judge</strong> Playwright
+            <strong className="font-medium text-ink-soft">Builder</strong> OpenAI gpt-5.4-mini · <strong className="font-medium text-ink-soft">Runtime</strong> Daytona · <strong className="font-medium text-ink-soft">Judge</strong> Playwright · <strong className="font-medium text-ink-soft">Diagnosis</strong> Doubleword
           </div>
           <div className="flex shrink-0 items-center justify-end gap-2">
             <button type="button" onClick={checkLength} className="inline-flex min-h-9 items-center gap-1.5 rounded border border-rule px-3 text-[12px] font-medium text-ink-soft transition-colors hover:bg-white/[0.05] hover:text-ink">

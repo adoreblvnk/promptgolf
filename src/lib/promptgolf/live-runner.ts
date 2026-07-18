@@ -1,14 +1,15 @@
 import path from "node:path";
 import { generateObject, generateText, stepCountIs, tool } from "ai";
 import { openai, type OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
+import { doubleword } from "@doubleword/vercel-ai";
 import { z } from "zod";
-import { getOpenAIAdapterStatus, getStoredEvalSpecStatus, probeDaytonaStatus } from "./adapters";
+import { getDoublewordAdapterStatus, getOpenAIAdapterStatus, getStoredEvalSpecStatus, probeDaytonaStatus, type ProviderMode } from "./adapters";
 import { adaptWorkspace } from "./artifact-adapter";
 import { boundedEnvNumber } from "./env-number";
 import { checkoutEvaluatorSpecs } from "./evaluator-specs";
 import { deterministicCheckoutWorkspace } from "./live-run-fixture";
 import { appendLiveRunEvent, createLiveRun, deleteLiveRun, getLiveRun, sanitizeLog, updateLiveRun, type LiveRunCategoryScore, type LiveRunSkillDiagnosis, type LiveRunTestCategory, type LiveRunTestResult } from "./live-run-store";
-import { OPENAI_BUILDER_MODEL, OPENAI_DIAGNOSIS_MODEL, OPENAI_VISUAL_JUDGE_MODEL } from "./model";
+import { DOUBLEWORD_DIAGNOSIS_MODEL, OPENAI_BUILDER_MODEL, OPENAI_VISUAL_JUDGE_MODEL } from "./model";
 import { captureVisualEvidence, evaluateSpecsWithPlaywright } from "./playwright-evaluator";
 import { readBoundedResponseText } from "./provider-response";
 import { redactSecrets } from "./redact-secrets";
@@ -53,6 +54,8 @@ const SkillDiagnosisSchema = z.object({
   promptingFeedback: z.string().min(1).max(180),
   technicalFeedback: z.string().min(1).max(180),
 });
+
+type DoublewordDiagnosisGenerator = (input: { system: string; prompt: string }) => Promise<LiveRunSkillDiagnosis>;
 
 const VisualJudgeSchema = z.object({
   styleTests: z.array(z.object({
@@ -417,7 +420,10 @@ async function buildInDaytona(id: string, prompt: string) {
   }
 
   try {
-    updateLiveRun(id, { providerMode: `OpenAI live · ${OPENAI_BUILDER_MODEL}`, sandboxMode: "Daytona creating sandbox" });
+    updateLiveRun(id, {
+      providerMode: `OpenAI builder · Doubleword ${process.env.DOUBLEWORD_API_KEY?.trim() ? "diagnosis" : "diagnosis unavailable"}`,
+      sandboxMode: "Daytona creating sandbox",
+    });
     appendLiveRunEvent(id, "generate", "info", `Starting OpenAI builder loop (${OPENAI_BUILDER_MODEL}, reasoning medium, verbosity low).`);
     appendLiveRunEvent(id, "sandbox", "info", "Creating isolated Daytona sandbox with auto-stop/archive/delete policy.");
     const { Daytona } = await import("@daytonaio/sdk");
@@ -726,7 +732,7 @@ async function buildInDaytona(id: string, prompt: string) {
 async function buildStubArtifact(id: string, origin: string) {
   const workspace = deterministicCheckoutWorkspace();
   updateLiveRun(id, {
-    providerMode: `CI stub · OpenAI ${OPENAI_BUILDER_MODEL} not called`,
+    providerMode: `CI stub · OpenAI and Doubleword not called`,
     sandboxMode: "CI stub · local artifact route",
     artifactWorkspace: workspace,
     previewUrl: `${origin}/api/live-runs/${id}/artifact`,
@@ -820,8 +826,45 @@ function scoreTests(tests: LiveRunTestResult[]) {
   return { passed, total, finalScore: total ? Math.round((passed / total) * 100) : 0, categories: categoryScores(tests) };
 }
 
-async function diagnosePromptWithOpenAI(id: string, prompt: string, tests: LiveRunTestResult[], score: ReturnType<typeof scoreTests>): Promise<LiveRunSkillDiagnosis> {
+function updateDoublewordProviderState(
+  id: string,
+  status: "connected" | "unavailable" | "degraded",
+  detail: string,
+  mode: ProviderMode = status === "degraded" ? "degraded" : getDoublewordAdapterStatus().mode,
+) {
+  const run = getLiveRun(id);
+  if (!run) return;
+  const next = { ...getDoublewordAdapterStatus(), status, mode, detail };
+  const hasDoubleword = run.providerState.some((provider) => provider.name === "Doubleword");
+  updateLiveRun(id, {
+    providerState: hasDoubleword
+      ? run.providerState.map((provider) => provider.name === "Doubleword" ? next : provider)
+      : [...run.providerState, next],
+  });
+}
+
+async function generateDoublewordDiagnosis(input: { system: string; prompt: string }) {
+  const result = await generateObject({
+    model: doubleword(DOUBLEWORD_DIAGNOSIS_MODEL),
+    schema: SkillDiagnosisSchema,
+    system: input.system,
+    prompt: input.prompt,
+    maxOutputTokens: 700,
+    maxRetries: 0,
+    timeout: EVALUATION_TIMEOUT_MS,
+  });
+  return result.object;
+}
+
+export async function diagnosePromptWithDoubleword(
+  id: string,
+  prompt: string,
+  tests: LiveRunTestResult[],
+  score: ReturnType<typeof scoreTests>,
+  generateDiagnosis: DoublewordDiagnosisGenerator = generateDoublewordDiagnosis,
+): Promise<LiveRunSkillDiagnosis> {
   if (stubsEnabled()) {
+    updateDoublewordProviderState(id, "connected", "CI stub mode: the Doubleword diagnosis boundary was exercised without an external request.", "stubbed");
     return {
       verdict: score.categories.find((category) => category.category === "hidden")?.passed === 3 ? "balanced" : "technical",
       promptingScore: 7,
@@ -832,40 +875,33 @@ async function diagnosePromptWithOpenAI(id: string, prompt: string, tests: LiveR
     };
   }
 
-  if (!process.env.OPENAI_API_KEY?.trim()) {
+  if (!process.env.DOUBLEWORD_API_KEY?.trim()) {
+    updateDoublewordProviderState(id, "unavailable", "DOUBLEWORD_API_KEY is not configured. Diagnosis is unavailable and the locked score is unchanged.");
+    appendLiveRunEvent(id, "score", "warning", "Doubleword prompt diagnosis unavailable: DOUBLEWORD_API_KEY is not configured. The locked score is unchanged.");
     return {
       verdict: "degraded",
       promptingScore: 0,
       technicalScore: 0,
-      summary: "Prompt analysis unavailable: OPENAI_API_KEY is not configured.",
+      summary: "Prompt analysis unavailable: DOUBLEWORD_API_KEY is not configured.",
       promptingFeedback: "Prompt analysis could not be completed by the live evaluator.",
       technicalFeedback: "Review failed functional and hidden checks to infer missing ecommerce/product knowledge.",
     };
   }
 
   try {
-    appendLiveRunEvent(id, "score", "info", `Running OpenAI prompt diagnosis (${OPENAI_DIAGNOSIS_MODEL}, reasoning low) after deterministic scoring.`);
+    appendLiveRunEvent(id, "score", "info", `Running Doubleword prompt diagnosis (${DOUBLEWORD_DIAGNOSIS_MODEL}) after deterministic scoring.`);
     const compactResults = tests.map((test) => ({ id: test.id, category: test.category, passed: test.passed, note: test.note.slice(0, 180) }));
-    const result = await generateObject({
-      model: openai.responses(OPENAI_DIAGNOSIS_MODEL),
-      schema: SkillDiagnosisSchema,
+    const diagnosis = await generateDiagnosis({
       system:
         "You are PromptGolf's concise skill diagnostician. Score the submitted prompt, not the generated app alone. Decide whether failures mainly show prompting skill gaps, technical/domain knowledge gaps, or a balanced mix. Do not reveal hidden test answers verbatim. Return only the requested structured object.",
       prompt: `Prompt submitted by contestant:\n${prompt.slice(0, 5000)}\n\nOverall and category score:\n${JSON.stringify(score)}\n\nEvaluator results:\n${JSON.stringify(compactResults)}\n\nScoring rubric: promptingScore measures clarity, specificity, and testable acceptance criteria. technicalScore measures encoded product/domain engineering knowledge. Both are integers from 0 to 10. Keep feedback concise enough for a scorecard panel. Diagnosis must not modify the already-computed score.`,
-      maxOutputTokens: 700,
-      maxRetries: 0,
-      timeout: EVALUATION_TIMEOUT_MS,
-      providerOptions: {
-        openai: {
-          reasoningEffort: "low",
-          textVerbosity: "low",
-        } satisfies OpenAIResponsesProviderOptions,
-      },
     });
-    return result.object;
+    updateDoublewordProviderState(id, "connected", `Doubleword structured diagnosis succeeded with ${DOUBLEWORD_DIAGNOSIS_MODEL}.`);
+    return diagnosis;
   } catch (error) {
     const message = sanitizeLog(error instanceof Error ? error.message : String(error));
-    appendLiveRunEvent(id, "score", "warning", `OpenAI prompt diagnosis degraded: ${message}`);
+    updateDoublewordProviderState(id, "degraded", `Doubleword structured diagnosis failed: ${message}. The locked score is unchanged.`);
+    appendLiveRunEvent(id, "score", "warning", `Doubleword prompt diagnosis degraded: ${message}`);
     return {
       verdict: "degraded",
       promptingScore: 0,
@@ -910,10 +946,11 @@ async function executeLiveRun(id: string, origin: string) {
       providerState: [
         { ...getOpenAIAdapterStatus(), status: process.env.OPENAI_API_KEY?.trim() ? "connected" : "unavailable" },
         await probeDaytonaStatus(),
+        { ...getDoublewordAdapterStatus(), status: process.env.DOUBLEWORD_API_KEY?.trim() ? "pending" : "unavailable" },
         { ...getStoredEvalSpecStatus(), status: "connected" },
       ],
     });
-    appendLiveRunEvent(id, "generate", "info", "Starting live run. Contestant prompt is sent only to the OpenAI builder; stored EvalSpecs and credentials stay server-side.");
+    appendLiveRunEvent(id, "generate", "info", "Starting live run. The contestant prompt goes to OpenAI for building; after score lock, the prompt plus a bounded score/evaluator summary go to Doubleword for diagnosis. Stored EvalSpecs and credentials stay server-side.");
     appendLiveRunEvent(id, "test", "info", "Using stored validated EvalSpecs. Contestant runs do not regenerate evaluator specs.");
 
     const built = stubsEnabled() ? await buildStubArtifact(id, origin) : await buildInDaytona(id, run.prompt);
@@ -928,10 +965,17 @@ async function executeLiveRun(id: string, origin: string) {
     const score = scoreTests(tests);
     updateLiveRun(id, { tests, score });
     appendLiveRunEvent(id, "score", "success", `Deterministic score computed before diagnosis: ${score.passed}/${score.total} checks passed (${score.finalScore}).`);
-    const diagnosis = await diagnosePromptWithOpenAI(id, run.prompt, tests, score);
+    const diagnosis = await diagnosePromptWithDoubleword(id, run.prompt, tests, score);
     updateLiveRun(id, { status: "completed", stage: "completed", tests, score, diagnosis });
     appendLiveRunEvent(id, "score", "success", `Live evaluation completed: ${score.passed}/${score.total} checks passed (${score.finalScore}). Functional ${score.categories[0].passed}/${score.categories[0].total}; hidden ${score.categories[1].passed}/${score.categories[1].total}; UI/UX ${score.categories[2].passed}/${score.categories[2].total}.`);
-    appendLiveRunEvent(id, "completed", "success", "Run completed from generated artifact, Daytona preview, deterministic Playwright checks, OpenAI visual judging, and post-score diagnosis.");
+    appendLiveRunEvent(
+      id,
+      "completed",
+      "success",
+      diagnosis.verdict === "degraded"
+        ? "Run completed from generated artifact, Daytona preview, deterministic Playwright checks, and OpenAI visual judging. Doubleword diagnosis was unavailable or degraded; the locked score is unchanged."
+        : "Run completed from generated artifact, Daytona preview, deterministic Playwright checks, OpenAI visual judging, and Doubleword post-score diagnosis.",
+    );
   } catch (error) {
     const message = sanitizeLog(error instanceof Error ? error.message : String(error));
     updateLiveRun(id, { status: "failed", stage: "failed", error: message });

@@ -6,6 +6,7 @@ describe("public-boundary secret redaction", () => {
     ["Bearer live-token.with_parts", "Bearer [redacted]"],
     ["Basic dXNlcjpwYXNzd29yZA==", "Basic [redacted]"],
     ["OPENAI_API_KEY=provider-secret-value", "OPENAI_API_KEY=[redacted]"],
+    ["DOUBLEWORD_API_KEY=provider-secret-value", "DOUBLEWORD_API_KEY=[redacted]"],
     ['{"api_key":"provider-secret-value"}', '{"api_key":"[redacted]"}'],
     ["https://service.test/fail?access_token=provider-secret-value&mode=live", "access_token=[redacted]&mode=live"],
     ["https://username:password@service.test/fail", "https://[redacted]@service.test/fail"],

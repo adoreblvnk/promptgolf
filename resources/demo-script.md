@@ -58,7 +58,7 @@ But now the prompt includes structure and domain knowledge:.”
 
 ## 1:42-1:56 - Expert result
 
-“OpenAI drives the Daytona loop again. Daytona serves again. Playwright scores behavior, then OpenAI diagnoses the prompt after the score is locked.
+“OpenAI drives the Daytona loop again. Daytona serves again. Playwright scores behavior, then Doubleword diagnoses the prompt after the score is locked.
 
 Now the score jumps.
 

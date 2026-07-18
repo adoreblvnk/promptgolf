@@ -19,7 +19,8 @@ PromptGolf is a competitive benchmark for agentic prompting: fewer prompts, more
 - Tailwind CSS v4.
 - shadcn/ui.
 - AI SDK v6.
-- `@ai-sdk/openai` for all live model calls using `OPENAI_API_KEY`.
+- `@ai-sdk/openai` for the live builder and visual judge using `OPENAI_API_KEY`.
+- `@doubleword/vercel-ai` for post-score prompt diagnosis using `DOUBLEWORD_API_KEY`.
 - Daytona for live sandbox/build/start/preview execution using `DAYTONA_API_KEY`.
 - Playwright for deterministic behavior evaluation.
 
@@ -27,16 +28,16 @@ PromptGolf is a competitive benchmark for agentic prompting: fewer prompts, more
 
 - Builder: OpenAI `gpt-5.4-mini`, reasoning `medium`, verbosity `low`.
 - Visual judge: OpenAI `gpt-5.4-mini`, reasoning `low`.
-- Prompt diagnosis: OpenAI `gpt-5.4-mini`, reasoning `low`.
+- Prompt diagnosis: Doubleword `DOUBLEWORD_MODEL`, default `Qwen/Qwen3.5-35B-A3B-FP8`.
 - Offline EvalSpec authoring/review only: `gpt-5.5`.
 - Behavior grading: Playwright only, no model.
-- Do not use Moonshot, Agnes, TokenRouter, Google, Codex, handwritten OpenAI HTTP calls, model routing, or live fallback providers.
+- Do not use Moonshot, Agnes, TokenRouter, Google, Codex, handwritten provider HTTP calls, model routing, or live fallback providers.
 
 Environment/API key notes:
 
 - `.env` already has some keys. Never commit or print real API keys.
 - Daytona API base URL is handled by the Daytona SDK.
-- Keep OpenAI and Daytona integrations behind adapters. When keys are absent, report unavailable/degraded state honestly rather than simulating provider success.
+- Keep OpenAI, Daytona, and Doubleword integrations behind adapters. When keys are absent, report unavailable/degraded state honestly rather than simulating provider success.
 
 ## Primary challenge
 
@@ -70,7 +71,7 @@ Scoring should reward public tests, hidden tests, UX/style, and fewer prompts. D
 - The live builder runs a bounded Daytona coding-agent loop: write → build → inspect → fix → start → verify.
 - After builder finalization or step-limit exhaustion, do not switch models, patch the artifact, or substitute fixtures in live mode. Record honest failure.
 - Stored validated EvalSpecs are used during contestant runs; they are not regenerated live.
-- Playwright behavior checks and OpenAI visual judging run after preview readiness, then prompt diagnosis runs after scoring and never changes the score.
+- Playwright behavior checks and OpenAI visual judging run after preview readiness, then Doubleword prompt diagnosis runs after scoring and never changes the score.
 - `POST /api/runs` remains available for deterministic naive/structured/expert seeded reference runs.
 - Seeded run pages, the leaderboard, scorecards, provider posture, generated-checkout preview surfaces, and API routes should remain functional under `npm run build`.
 
@@ -78,8 +79,9 @@ Scoring should reward public tests, hidden tests, UX/style, and fewer prompts. D
 
 Use:
 
-- OpenAI through `@ai-sdk/openai` for live builder, visual judge, and post-score diagnosis.
+- OpenAI through `@ai-sdk/openai` for the live builder and visual judge.
 - Daytona for isolated workspace file writes, approved commands, production build/start, health checks, preview URL, and sandbox lifecycle cleanup.
+- Doubleword through `@doubleword/vercel-ai` for structured post-score prompt diagnosis.
 - Stored EvalSpecs plus Playwright for deterministic behavior grading.
 
 Do not add unrelated provider integrations unless the scope changes.
